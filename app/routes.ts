@@ -25,6 +25,9 @@ export default [
   // Dashboard
   route('dashboard', 'routes/dashboard.tsx'),
 
+  // Profile
+  route('profile/edit', 'routes/profile-edit.tsx'),
+
   // Admin
   route('admin', 'routes/admin.tsx'),
 ] satisfies RouteConfig;

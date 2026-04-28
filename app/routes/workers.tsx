@@ -26,7 +26,7 @@ export default function WorkersPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold">인력 찾기</h1>
-        <p className="text-gray-500 mt-1">전문 인력을 찾아보세요</p>
+        <p className="text-[#49454F] mt-1">전문 인력을 찾아보세요</p>
       </div>
       <div className="mb-6 relative max-w-md">
         <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
@@ -35,34 +35,32 @@ export default function WorkersPage() {
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
         {workers.map((w) => (
           <Link to={`/workers/${w.id}`} key={w.id}>
-            <Card className="hover:shadow-md transition-all hover:border-blue-200 h-full">
-              <CardContent className="p-6">
-                <div className="flex items-start gap-4">
-                  <div className="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xl shrink-0">
-                    {(w.name || '?')[0]}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-lg">{w.name}</h3>
-                    {w.location && <div className="flex items-center gap-1 text-sm text-gray-500"><MapPin className="h-3.5 w-3.5" />{w.location}</div>}
-                    {w.rating > 0 && (
-                      <div className="flex items-center gap-1 text-sm mt-1">
-                        <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
-                        <span>{w.rating}</span>
-                        <span className="text-gray-400">({w.reviewCount})</span>
-                      </div>
-                    )}
-                    {w.bio && <p className="text-sm text-gray-600 mt-2 line-clamp-2">{w.bio}</p>}
-                    {w.skills && (
-                      <div className="flex flex-wrap gap-1 mt-3">
-                        {w.skills.split(',').slice(0, 4).map((s) => (
-                          <Badge key={s} variant="secondary" className="text-xs">{s.trim()}</Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+            <div className="bg-[#FFFBFE] rounded-3xl p-6 h-full transition-all duration-300 ease-in-out hover:scale-[1.02] cursor-pointer">
+              <div className="flex items-start gap-4">
+                <div className="w-14 h-14 rounded-full bg-[#6750A4] flex items-center justify-center text-white font-bold text-xl shrink-0">
+                  {(w.name || '?')[0]}
                 </div>
-              </CardContent>
-            </Card>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-lg">{w.name}</h3>
+                  {w.location && <div className="flex items-center gap-1 text-sm text-[#49454F]"><MapPin className="h-3.5 w-3.5" />{w.location}</div>}
+                  {w.rating > 0 && (
+                    <div className="flex items-center gap-1 text-sm mt-1">
+                      <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
+                      <span>{w.rating}</span>
+                      <span className="text-gray-400">({w.reviewCount})</span>
+                    </div>
+                  )}
+                  {w.bio && <p className="text-sm text-[#49454F] mt-2 line-clamp-2">{w.bio}</p>}
+                  {w.skills && (
+                    <div className="flex flex-wrap gap-1 mt-3">
+                      {w.skills.split(',').slice(0, 4).map((s) => (
+                        <Badge key={s} className="text-xs bg-[#E8DEF8] text-blue-700 border-0">{s.trim()}</Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </Link>
         ))}
       </div>

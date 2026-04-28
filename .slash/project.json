@@ -28,5 +28,9 @@
     "url": "https://poomworkmvp-582a.app.slash.ai.kr",
     "status": "building"
   },
-  "db": {"provider": "turso", "name": "poomworkmvp-db", "url": "libsql://poomworkmvp-db-mainsoft.aws-ap-northeast-1.turso.io"}
+  "db": {
+    "provider": "turso",
+    "name": "poomworkmvp-db",
+    "url": "libsql://poomworkmvp-db-mainsoft.aws-ap-northeast-1.turso.io"
+  }
 }

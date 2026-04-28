@@ -5,7 +5,6 @@ import { ArrowLeft, MapPin, Clock, Users, Eye, Star, Briefcase } from 'lucide-re
 import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
 import { Textarea } from '~/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
 import { Badge } from '~/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '~/components/ui/dialog';
 import { db } from '~/lib/db.server';
@@ -50,7 +49,7 @@ export default function JobDetail() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <Link to="/jobs" className="inline-flex items-center text-sm text-gray-500 hover:text-blue-600 mb-6">
+      <Link to="/jobs" className="inline-flex items-center text-sm text-[#49454F] hover:text-[#6750A4] mb-6">
         <ArrowLeft className="h-4 w-4 mr-1" />목록으로 돌아가기
       </Link>
 
@@ -59,10 +58,10 @@ export default function JobDetail() {
           <div>
             <div className="flex items-center gap-2 mb-3">
               {category && <Badge variant="outline">{category.name}</Badge>}
-              <Badge className="bg-green-100 text-green-700">모집중</Badge>
+              <Badge className="bg-[#E8DEF8] text-[#1D192B]">모집중</Badge>
             </div>
-            <h1 className="text-3xl font-bold mb-4">{job.title}</h1>
-            <div className="flex flex-wrap gap-4 text-sm text-gray-500 mb-6">
+            <h1 className='text-3xl font-bold mb-4'>{job.title}</h1>
+            <div className="flex flex-wrap gap-4 text-sm text-[#49454F] mb-6">
               <span className="flex items-center gap-1"><Briefcase className="h-4 w-4" />{formatBudget()}</span>
               <span className="flex items-center gap-1"><Clock className="h-4 w-4" />{job.duration || '협의'}</span>
               <span className="flex items-center gap-1"><MapPin className="h-4 w-4" />{job.isRemote ? '원격 가능' : job.location || '미정'}</span>
@@ -71,70 +70,64 @@ export default function JobDetail() {
             </div>
           </div>
 
-          <Card>
-            <CardHeader><CardTitle>프로젝트 설명</CardTitle></CardHeader>
-            <CardContent>
-              <div className="whitespace-pre-wrap text-gray-700">{job.description}</div>
-            </CardContent>
-          </Card>
+          <div className='bg-[#F3EDF7] rounded-3xl p-6'>
+            <h2 className='text-lg font-bold mb-4'>프로젝트 설명</h2>
+              <div className='whitespace-pre-wrap text-[#1C1B1F]'>{job.description}</div>
+          </div>
 
           {job.requirements && (
-            <Card>
-              <CardHeader><CardTitle>요구 역량</CardTitle></CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  {job.requirements.split(',').map((s) => (
-                    <Badge key={s} variant="secondary">{s.trim()}</Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            <div className='bg-[#F3EDF7] rounded-3xl p-6'>
+              <h2 className='text-lg font-bold mb-4'>요구 역량</h2>
+              <div className='flex flex-wrap gap-2'>
+                {job.requirements.split(',').map((s) => (
+                  <Badge key={s} variant='secondary'>{s.trim()}</Badge>
+                ))}
+              </div>
+            </div>
           )}
         </div>
 
         <div className="space-y-6">
           {client && (
-            <Card>
-              <CardHeader><CardTitle className="text-base">의뢰자 정보</CardTitle></CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-semibold">
-                    {(client.name || '?')[0]}
-                  </div>
-                  <div>
-                    <div className="font-medium">{client.name}</div>
-                    <div className="text-sm text-gray-500">{client.location || '한국'}</div>
-                  </div>
+            <div className='bg-[#F3EDF7] rounded-3xl p-6'>
+              <h2 className='text-base font-bold mb-4'>의뢰자 정보</h2>
+              <div className='flex items-center gap-3 mb-3'>
+                <div className='w-10 h-10 rounded-full bg-[#E8DEF8] flex items-center justify-center text-[#6750A4] font-semibold'>
+                  {(client.name || '?')[0]}
                 </div>
-                {client.rating > 0 && (
-                  <div className="flex items-center gap-1 text-sm">
-                    <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
-                    <span>{client.rating}</span>
-                    <span className="text-gray-400">({client.reviewCount})</span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                <div>
+                  <div className='font-medium'>{client.name}</div>
+                  <div className='text-sm text-[#49454F]'>{client.location || '한국'}</div>
+                </div>
+              </div>
+              {client.rating > 0 && (
+                <div className='flex items-center gap-1 text-sm'>
+                  <Star className='h-4 w-4 text-yellow-400 fill-yellow-400' />
+                  <span>{client.rating}</span>
+                  <span className='text-gray-400'>({client.reviewCount})</span>
+                </div>
+              )}
+            </div>
           )}
 
           {currentUser && currentUser.role === 'worker' && (
             <Dialog>
               <DialogTrigger asChild>
-                <Button className="w-full bg-blue-600 hover:bg-blue-700">지원하기</Button>
+                <Button className='w-full bg-[#6750A4] hover:bg-purple-800 hover:bg-purple-800 active:scale-95 transition-all duration-300 ease-in-out h-12 rounded-full'>지원하기</Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader><DialogTitle>프로젝트 지원</DialogTitle></DialogHeader>
-                <form method="post" className="space-y-4">
-                  <div><label className="text-sm font-medium">지원서</label><Textarea name="coverLetter" placeholder="자기소개와 관련 경험을 적어주세요" rows={5} required /></div>
-                  <div><label className="text-sm font-medium">제안 금액 (원)</label><Input name="proposedBudget" type="number" placeholder="8000000" /></div>
-                  <div><label className="text-sm font-medium">예상 기간</label><Input name="proposedDuration" placeholder="예: 3개월" /></div>
-                  <Button type="submit" className="w-full bg-blue-600">지원 완료</Button>
+                <form method='post' className='space-y-4'>
+                  <div><label className='text-sm font-medium'>지원서</label><Textarea name='coverLetter' placeholder='자기소개와 관련 경험을 적어주세요' rows={5} required className='bg-[#E7E0EC] rounded-t-xl border-0 border-b-2 border-gray-400' /></div>
+                  <div><label className='text-sm font-medium'>제안 금액 (원)</label><Input name='proposedBudget' type='number' placeholder='8000000' className='bg-[#E7E0EC] rounded-t-xl border-0 border-b-2 border-gray-400' /></div>
+                  <div><label className='text-sm font-medium'>예상 기간</label><Input name='proposedDuration' placeholder='예: 3개월' className='bg-[#E7E0EC] rounded-t-xl border-0 border-b-2 border-gray-400' /></div>
+                  <Button type='submit' className='w-full bg-[#6750A4] hover:bg-purple-800 active:scale-95 transition-all duration-300 ease-in-out h-12 rounded-full'>지원 완료</Button>
                 </form>
               </DialogContent>
             </Dialog>
           )}
           {!currentUser && (
-            <Button asChild className="w-full bg-blue-600 hover:bg-blue-700"><Link to="/login">로그인 후 지원하기</Link></Button>
+            <Button asChild className='w-full bg-[#6750A4] hover:bg-purple-800 hover:bg-purple-800 active:scale-95 transition-all duration-300 ease-in-out h-12 rounded-full'><Link to='/login'>로그인 후 지원하기</Link></Button>
           )}
         </div>
       </div>

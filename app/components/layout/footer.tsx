@@ -3,45 +3,47 @@ import { Briefcase } from 'lucide-react';
 
 export function Footer() {
   return (
-    <footer className="bg-gray-900 text-gray-300">
-      <div className="container mx-auto px-4 py-12">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+    <footer className='bg-[#1C1B1F] text-[#CAC4D0] relative overflow-hidden'>
+      {/* Decorative blur shape */}
+      <div className='absolute top-0 right-0 w-64 h-64 bg-[#6750A4]/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4' aria-hidden='true' />
+      <div className='container mx-auto px-4 py-12 relative z-10'>
+        <div className='grid grid-cols-2 md:grid-cols-4 gap-8'>
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <Briefcase className="h-6 w-6 text-blue-400" />
-              <span className="text-lg font-bold text-white">poomwork</span>
+            <div className='flex items-center gap-2 mb-4'>
+              <Briefcase className='h-6 w-6 text-[#D0BCFF]' />
+              <span className='text-lg font-bold text-white'>poomwork</span>
             </div>
-            <p className="text-sm text-gray-400">
+            <p className='text-sm text-[#938F99]'>
               전문 인력과 일거리를 연결하고,<br />
               실무 교육을 제공하는 플랫폼
             </p>
           </div>
           <div>
-            <h3 className="font-semibold text-white mb-4">서비스</h3>
-            <ul className="space-y-2 text-sm">
-              <li><Link to="/jobs" className="hover:text-white transition-colors">일거리 찾기</Link></li>
-              <li><Link to="/workers" className="hover:text-white transition-colors">인력 찾기</Link></li>
-              <li><Link to="/courses" className="hover:text-white transition-colors">교육 강좌</Link></li>
+            <h3 className='font-bold text-white mb-4'>서비스</h3>
+            <ul className='space-y-2 text-sm'>
+              <li><Link to='/jobs' className='hover:text-white transition-all duration-300 rounded-full px-2 py-1 -mx-2'>일거리 찾기</Link></li>
+              <li><Link to='/workers' className='hover:text-white transition-all duration-300 rounded-full px-2 py-1 -mx-2'>인력 찾기</Link></li>
+              <li><Link to='/courses' className='hover:text-white transition-all duration-300 rounded-full px-2 py-1 -mx-2'>교육 강좌</Link></li>
             </ul>
           </div>
           <div>
-            <h3 className="font-semibold text-white mb-4">고객지원</h3>
-            <ul className="space-y-2 text-sm">
-              <li><span className="hover:text-white transition-colors cursor-pointer">이용약관</span></li>
-              <li><span className="hover:text-white transition-colors cursor-pointer">개인정보처리방침</span></li>
-              <li><span className="hover:text-white transition-colors cursor-pointer">자주 묻는 질문</span></li>
+            <h3 className='font-bold text-white mb-4'>고객지원</h3>
+            <ul className='space-y-2 text-sm'>
+              <li><span className='hover:text-white transition-all duration-300 cursor-pointer rounded-full px-2 py-1 -mx-2'>이용약관</span></li>
+              <li><span className='hover:text-white transition-all duration-300 cursor-pointer rounded-full px-2 py-1 -mx-2'>개인정보처리방침</span></li>
+              <li><span className='hover:text-white transition-all duration-300 cursor-pointer rounded-full px-2 py-1 -mx-2'>자주 묻는 질문</span></li>
             </ul>
           </div>
           <div>
-            <h3 className="font-semibold text-white mb-4">연락처</h3>
-            <ul className="space-y-2 text-sm">
+            <h3 className='font-bold text-white mb-4'>연락처</h3>
+            <ul className='space-y-2 text-sm'>
               <li>이메일: help@poomwork.com</li>
               <li>전화: 02-1234-5678</li>
               <li>운영시간: 평일 9시~18시</li>
             </ul>
           </div>
         </div>
-        <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm text-gray-500">
+        <div className='mt-8 pt-8 text-center text-sm text-[#938F99]'>
           © 2026 poomwork. All rights reserved.
         </div>
       </div>

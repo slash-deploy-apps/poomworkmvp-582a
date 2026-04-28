@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { Link, redirect, useLoaderData, useNavigate, useParams } from 'react-router';
+import { Link, redirect, useLoaderData, useNavigate } from 'react-router';
 import type { MetaFunction, LoaderFunctionArgs, ActionFunctionArgs } from 'react-router';
 import { eq, sql, and } from 'drizzle-orm';
-import { CheckCircle, Play, ChevronLeft, ChevronRight, Menu, X } from 'lucide-react';
+import { CheckCircle, Play, ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 import { Button } from '~/components/ui/button';
-import { Card, CardContent } from '~/components/ui/card';
 import { Progress } from '~/components/ui/progress';
 import { Sheet, SheetContent, SheetTrigger } from '~/components/ui/sheet';
 import { db } from '~/lib/db.server';
@@ -56,19 +55,19 @@ export default function CourseLearn() {
 
   const SidebarContent = () => (
     <div className="h-full flex flex-col">
-      <div className="p-4 border-b">
-        <h2 className="font-semibold text-sm line-clamp-2">{course.title}</h2>
-        <div className="mt-2"><Progress value={progressPct} className="h-2" /><p className="text-xs text-gray-500 mt-1">{progressPct}% 완료</p></div>
+      <div className='p-4 bg-gray-50'>
+        <h2 className='font-semibold text-sm line-clamp-2'>{course.title}</h2>
+        <div className='mt-2'><Progress value={progressPct} className='h-2' /><p className='text-xs text-[#49454F] mt-1'>{progressPct}% 완료</p></div>
       </div>
       <div className="flex-1 overflow-y-auto">
         {chapters.map((ch) => {
           const chLessons = lessons.filter(l => l.chapterId === ch.id);
           return (
-            <div key={ch.id} className="border-b">
-              <div className="px-4 py-2 bg-gray-50 text-sm font-medium">{ch.title}</div>
+            <div key={ch.id} className='bg-gray-100'>
+              <div className='px-4 py-2 bg-gray-100 text-sm font-medium'>{ch.title}</div>
               {chLessons.map((l) => (
-                <button key={l.id} onClick={() => navigate(`/courses/${course.id}/learn?lesson=${l.id}`)} className={`w-full flex items-center gap-2 px-4 py-2 text-sm text-left hover:bg-blue-50 transition-colors ${l.id === currentLessonId ? 'bg-blue-50 text-blue-700 font-medium' : ''}`}>
-                  {watchedIds.has(l.id) ? <CheckCircle className="h-4 w-4 text-green-500 shrink-0" /> : <Play className="h-4 w-4 text-gray-400 shrink-0" />}
+                <button key={l.id} onClick={() => navigate(`/courses/${course.id}/learn?lesson=${l.id}`)} className={`w-full flex items-center gap-2 px-4 py-2 text-sm text-left hover:bg-purple-50 transition-all duration-300 ease-in-out ${l.id === currentLessonId ? 'bg-purple-50 text-blue-700 font-medium' : ''}`}>
+                  {watchedIds.has(l.id) ? <CheckCircle className="h-4 w-4 text-[#7D5260] shrink-0" /> : <Play className="h-4 w-4 text-gray-400 shrink-0" />}
                   <span className="truncate">{l.title}</span>
                 </button>
               ))}
@@ -82,7 +81,7 @@ export default function CourseLearn() {
   return (
     <div className="flex h-[calc(100vh-4rem)]">
       {/* Desktop sidebar */}
-      <div className="hidden md:block w-80 border-r overflow-y-auto"><SidebarContent /></div>
+      <div className='hidden md:block w-80 bg-gray-50 overflow-y-auto'><SidebarContent /></div>
 
       {/* Main content */}
       <div className="flex-1 flex flex-col">
@@ -97,20 +96,20 @@ export default function CourseLearn() {
             </div>
           )}
         </div>
-        <div className="p-4 border-t bg-white">
+        <div className='p-4 bg-gray-50'>
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <h3 className="font-semibold">{currentLesson?.title}</h3>
-              <p className="text-sm text-gray-500">{Math.floor((currentLesson?.duration || 0) / 60)}분 {(currentLesson?.duration || 0) % 60}초</p>
+              <p className="text-sm text-[#49454F]">{Math.floor((currentLesson?.duration || 0) / 60)}분 {(currentLesson?.duration || 0) % 60}초</p>
             </div>
             <div className="flex items-center gap-2">
               {/* Mobile sidebar trigger */}
-              <Sheet><SheetTrigger asChild className="md:hidden"><Button variant="outline" size="sm"><Menu className="h-4 w-4" /></Button></SheetTrigger><SheetContent side="left" className="w-80 p-0"><SidebarContent /></SheetContent></Sheet>
-              {prevLesson && <Button variant="outline" size="sm" onClick={() => navigate(`/courses/${course.id}/learn?lesson=${prevLesson.id}`)}><ChevronLeft className="h-4 w-4" />이전</Button>}
+              <Sheet><SheetTrigger asChild className='md:hidden'><Button variant='outline' size='sm' className='rounded-full'><Menu className='h-4 w-4' /></Button></SheetTrigger><SheetContent side='left' className='w-80 p-0'><SidebarContent /></SheetContent></Sheet>
+              {prevLesson && <Button variant='outline' size='sm' onClick={() => navigate(`/courses/${course.id}/learn?lesson=${prevLesson.id}`)} className='rounded-full hover:bg-purple-800 active:scale-95 transition-all duration-300 ease-in-out'><ChevronLeft className='h-4 w-4' />이전</Button>}
               {!watchedIds.has(currentLessonId) && currentLesson && (
-                <form method="post"><input type="hidden" name="lessonId" value={currentLesson.id} /><Button type="submit" size="sm" className="bg-green-600 hover:bg-green-700">완료</Button></form>
+                <form method='post'><input type='hidden' name='lessonId' value={currentLesson.id} /><Button type='submit' size='sm' className='bg-[#7D5260] hover:bg-[#7D5260] hover:bg-purple-800 active:scale-95 transition-all duration-300 ease-in-out rounded-full'>완료</Button></form>
               )}
-              {nextLesson && <Button variant="outline" size="sm" onClick={() => navigate(`/courses/${course.id}/learn?lesson=${nextLesson.id}`)}>다음<ChevronRight className="h-4 w-4" /></Button>}
+              {nextLesson && <Button variant='outline' size='sm' onClick={() => navigate(`/courses/${course.id}/learn?lesson=${nextLesson.id}`)} className='rounded-full hover:bg-purple-800 active:scale-95 transition-all duration-300 ease-in-out'>다음<ChevronRight className='h-4 w-4' /></Button>}
             </div>
           </div>
         </div>

@@ -4,7 +4,6 @@ import type { MetaFunction, LoaderFunctionArgs, ActionFunctionArgs } from 'react
 import { Mail, Lock, Briefcase } from 'lucide-react';
 import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '~/components/ui/card';
 import { auth } from '~/lib/auth.server';
 import { authClient } from '~/lib/auth-client';
 
@@ -38,42 +37,41 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 px-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <div className="bg-blue-600 p-3 rounded-full">
-              <Briefcase className="h-6 w-6 text-white" />
+    <div className='min-h-[80vh] flex items-center justify-center bg-[#FFFBFE] px-4 relative overflow-hidden'>
+      <div className='absolute top-0 right-0 w-64 h-64 bg-purple-50 rounded-full blur-3xl' aria-hidden='true' />
+      <div className='w-full max-w-md bg-[#F3EDF7] rounded-3xl p-8 shadow-sm relative z-10'>
+        <div className='text-center mb-8'>
+          <div className='flex justify-center mb-4'>
+            <div className='bg-[#6750A4] p-3 rounded-full shadow-sm'>
+              <Briefcase className='h-6 w-6 text-white' />
             </div>
           </div>
-          <CardTitle className="text-2xl">로그인</CardTitle>
-          <CardDescription>poomwork 계정에 로그인하세요</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && <div className="p-3 text-sm text-red-600 bg-red-50 rounded-lg">{error}</div>}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">이메일</label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input name="email" type="email" placeholder="email@example.com" className="pl-10" required />
-              </div>
+          <h1 className='text-2xl font-bold text-[#1C1B1F]'>로그인</h1>
+          <p className='text-sm text-[#49454F] mt-1'>poomwork 계정에 로그인하세요</p>
+        </div>
+        <form onSubmit={handleSubmit} className='space-y-4'>
+          {error && <div className='p-3 text-sm text-[#B3261E] bg-red-50 rounded-2xl'>{error}</div>}
+          <div className='space-y-2'>
+            <label className='text-sm font-medium text-[#1C1B1F]'>이메일</label>
+            <div className='relative'>
+              <Mail className='absolute left-3 top-4 h-4 w-4 text-gray-400' />
+              <Input name='email' type='email' placeholder='email@example.com' className='pl-10 bg-[#E7E0EC] rounded-t-xl border-0 border-b-2 border-gray-400 h-14 focus:border-purple-700' required />
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">비밀번호</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input name="password" type="password" placeholder="••••••••" className="pl-10" required />
-              </div>
-            </div>
-            <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700">로그인</Button>
-          </form>
-          <div className="mt-6 text-center text-sm">
-            계정이 없으신가요?{' '}
-            <Link to="/register" className="text-blue-600 hover:underline font-medium">회원가입</Link>
           </div>
-        </CardContent>
-      </Card>
+          <div className='space-y-2'>
+            <label className='text-sm font-medium text-[#1C1B1F]'>비밀번호</label>
+            <div className='relative'>
+              <Lock className='absolute left-3 top-4 h-4 w-4 text-gray-400' />
+              <Input name='password' type='password' placeholder='••••••••' className='pl-10 bg-[#E7E0EC] rounded-t-xl border-0 border-b-2 border-gray-400 h-14 focus:border-purple-700' required />
+            </div>
+          </div>
+          <Button type='submit' className='w-full rounded-full bg-[#6750A4] text-white hover:bg-purple-800 active:scale-95 shadow-sm hover:shadow-md h-12 font-medium transition-all duration-300 ease-in-out'>로그인</Button>
+        </form>
+        <div className='mt-6 text-center text-sm'>
+          계정이 없으신가요?{' '}
+          <Link to='/register' className='text-[#6750A4] hover:underline font-medium'>회원가입</Link>
+        </div>
+      </div>
     </div>
   );
 }

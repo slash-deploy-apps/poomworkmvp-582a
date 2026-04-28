@@ -24,7 +24,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 
 const levelMap: Record<string, { label: string; color: string }> = {
-  beginner: { label: '초급', color: 'bg-green-100 text-green-700' },
+  beginner: { label: '초급', color: 'bg-[#E8DEF8] text-[#1D192B]' },
   intermediate: { label: '중급', color: 'bg-yellow-100 text-yellow-700' },
   advanced: { label: '고급', color: 'bg-red-100 text-red-700' },
 };
@@ -37,7 +37,7 @@ export default function CoursesPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold">교육 강좌</h1>
-        <p className="text-gray-500 mt-1">전문 툴 사용법을 체계적으로 배우세요</p>
+        <p className="text-[#49454F] mt-1">전문 툴 사용법을 체계적으로 배우세요</p>
       </div>
       <div className="mb-6 relative max-w-md">
         <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
@@ -46,29 +46,29 @@ export default function CoursesPage() {
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
         {allCourses.map((c, i) => (
           <Link to={`/courses/${c.id}`} key={c.id}>
-            <Card className="hover:shadow-lg transition-all hover:-translate-y-1 overflow-hidden">
+            <div className="bg-[#FFFBFE] rounded-3xl overflow-hidden transition-all duration-300 ease-in-out hover:scale-[1.02] cursor-pointer">
               <div className={`h-40 bg-gradient-to-br ${gradients[i % gradients.length]} flex items-center justify-center`}>
                 <GraduationCap className="h-16 w-16 text-white/40" />
               </div>
-              <CardContent className="p-5">
+              <div className="p-5">
                 <div className="flex items-center gap-2 mb-2">
                   {levelMap[c.level] && <Badge className={levelMap[c.level].color}>{levelMap[c.level].label}</Badge>}
-                  {c.categoryName && <Badge variant="outline">{c.categoryName}</Badge>}
+                  {c.categoryName && <Badge className="bg-gray-100 text-[#1C1B1F] border-0">{c.categoryName}</Badge>}
                 </div>
-                <h3 className="font-semibold text-lg mb-2 line-clamp-2">{c.title}</h3>
-                <div className="text-sm text-gray-500">{c.instructorName}</div>
-                <div className="flex items-center justify-between mt-3 pt-3 border-t">
-                  <div className="flex items-center gap-3 text-sm text-gray-500">
-                    <span className="flex items-center gap-1"><Star className="h-3.5 w-3.5 text-yellow-400 fill-yellow-400" />{c.rating}</span>
+                <h3 className="font-bold text-lg mb-2 line-clamp-2">{c.title}</h3>
+                <div className="text-sm text-[#49454F]">{c.instructorName}</div>
+                <div className="flex items-center justify-between mt-3 pt-3 border-t-2 border-gray-100">
+                  <div className="flex items-center gap-3 text-sm text-[#49454F]">
+                    <span className="flex items-center gap-1"><Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />{c.rating}</span>
                     <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" />{c.enrollmentCount}명</span>
                     <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{c.duration}</span>
                   </div>
                 </div>
-                <div className="mt-2 font-semibold text-blue-600">
+                <div className="mt-2 font-bold text-[#6750A4]">
                   {c.price === 0 ? '무료' : `${new Intl.NumberFormat('ko-KR').format(c.price)}원`}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </Link>
         ))}
       </div>
