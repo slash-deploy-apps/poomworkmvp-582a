@@ -1,0 +1,36 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# database
+db.sqlite
+sqlite.db
+
+# react-router
+/.react-router/
+/build/
+
+# production
+/dist
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# local env overrides
+# .env*.local
+# .env.development
+# .env.production
+
+# typescript
+*.tsbuildinfo

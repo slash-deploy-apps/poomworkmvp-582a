@@ -1,0 +1,44 @@
+name: Build & Upload Template Tarball
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # manual trigger
+
+permissions:
+  contents: write # needed for creating releases
+
+jobs:
+  build-tarball:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build tarball
+        run: |
+          tar czf /tmp/webapp-latest.tar.gz \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='sqlite.db' \
+            --exclude='sqlite.db-shm' \
+            --exclude='sqlite.db-wal' \
+            --exclude='build' \
+            --exclude='.react-router' \
+            --exclude='.DS_Store' \
+            .
+
+      - name: Show tarball info
+        run: |
+          ls -lh /tmp/webapp-latest.tar.gz
+          echo "Contents:"
+          tar tzf /tmp/webapp-latest.tar.gz | head -30
+
+      - name: Upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload latest /tmp/webapp-latest.tar.gz --clobber 2>/dev/null || \
+            gh release create latest /tmp/webapp-latest.tar.gz \
+              --title "Latest Template" \
+              --notes "Auto-generated boilerplate tarball. Updated on $(date -u +%Y-%m-%dT%H:%M:%SZ)"

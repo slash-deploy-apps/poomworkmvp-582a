@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "1.0.0",
+  "platform": "cloud",
+  "app": { "type": "webapp" },
+  "devServers": [
+    { "id": "web", "name": "web", "command": "pnpm dev --port 4321", "port": 4321, "cwd": "/home/user/projects/poomworkmvp", "stopCommand": null, "primary": true }
+  ],
+  "preferences": { "techPreference": "medium", "questionLevel": "medium", "designDocs": false },
+  "deployment": { "provider": "none", "status": "not_deployed" }
+}
