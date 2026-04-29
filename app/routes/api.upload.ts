@@ -1,28 +1,7 @@
 import type { ActionFunctionArgs } from 'react-router';
-import { UTApi, UTFile } from 'uploadthing/server';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { UTFile } from 'uploadthing/server';
 import { auth } from '~/lib/auth.server';
-
-function getToken(): string | undefined {
-  if (process.env.UPLOADTHING_TOKEN) return process.env.UPLOADTHING_TOKEN;
-  for (const filename of ['.env.local', '.env', '.env.development']) {
-    try {
-      const content = readFileSync(resolve(process.cwd(), filename), 'utf-8');
-      const match = content.match(/^UPLOADTHING_TOKEN=(.+)$/m);
-      const token = match?.[1]?.trim();
-      if (token) return token;
-    } catch {
-      // file not found, try next
-    }
-  }
-  return undefined;
-}
-
-const TOKEN = getToken();
-console.log('[UT] token present at module init?', !!TOKEN, 'len:', TOKEN?.length);
-
-const utapi = new UTApi({ token: TOKEN });
+import { utapi } from '~/lib/uploadthing-token.server';
 
 export async function action({ request }: ActionFunctionArgs) {
   const session = await auth.api.getSession({ headers: request.headers });

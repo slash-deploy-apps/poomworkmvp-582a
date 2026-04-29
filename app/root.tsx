@@ -57,7 +57,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="absolute h-[40vh] w-[40vh] rounded-full bg-[#10B981]/10 blur-3xl bottom-[5%] right-[15%] animate-clay-float-delayed" />
         </div>
         {children}
-        {children}
         <ScrollRestoration />
         <Scripts />
       </body>
