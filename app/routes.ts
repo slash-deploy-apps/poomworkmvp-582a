@@ -28,6 +28,9 @@ export default [
   // Profile
   route('profile/edit', 'routes/profile-edit.tsx'),
 
+  // Messages
+  route('messages', 'routes/messages.tsx'),
+
   // Admin
   route('admin', 'routes/admin.tsx'),
 ] satisfies RouteConfig;

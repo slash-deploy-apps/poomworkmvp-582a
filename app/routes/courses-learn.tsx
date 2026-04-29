@@ -57,7 +57,7 @@ export default function CourseLearn() {
     <div className="h-full flex flex-col">
       <div className='p-4 bg-gray-50'>
         <h2 className='font-semibold text-sm line-clamp-2'>{course.title}</h2>
-        <div className='mt-2'><Progress value={progressPct} className='h-2' /><p className='text-xs text-[#49454F] mt-1'>{progressPct}% 완료</p></div>
+        <div className='mt-2'><Progress value={progressPct} className='h-2' /><p className='text-xs text-[#635F69] mt-1'>{progressPct}% 완료</p></div>
       </div>
       <div className="flex-1 overflow-y-auto">
         {chapters.map((ch) => {
@@ -66,8 +66,8 @@ export default function CourseLearn() {
             <div key={ch.id} className='bg-gray-100'>
               <div className='px-4 py-2 bg-gray-100 text-sm font-medium'>{ch.title}</div>
               {chLessons.map((l) => (
-                <button key={l.id} onClick={() => navigate(`/courses/${course.id}/learn?lesson=${l.id}`)} className={`w-full flex items-center gap-2 px-4 py-2 text-sm text-left hover:bg-purple-50 transition-all duration-300 ease-in-out ${l.id === currentLessonId ? 'bg-purple-50 text-blue-700 font-medium' : ''}`}>
-                  {watchedIds.has(l.id) ? <CheckCircle className="h-4 w-4 text-[#7D5260] shrink-0" /> : <Play className="h-4 w-4 text-gray-400 shrink-0" />}
+                <button key={l.id} onClick={() => navigate(`/courses/${course.id}/learn?lesson=${l.id}`)} className={`w-full flex items-center gap-2 px-4 py-2 text-sm text-left hover:bg-purple-50 transition-all duration-200 ease-in-out ${l.id === currentLessonId ? 'bg-purple-50 text-blue-700 font-medium' : ''}`}>
+                  {watchedIds.has(l.id) ? <CheckCircle className="h-4 w-4 text-[#DB2777] shrink-0" /> : <Play className="h-4 w-4 text-gray-400 shrink-0" />}
                   <span className="truncate">{l.title}</span>
                 </button>
               ))}
@@ -100,16 +100,16 @@ export default function CourseLearn() {
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <h3 className="font-semibold">{currentLesson?.title}</h3>
-              <p className="text-sm text-[#49454F]">{Math.floor((currentLesson?.duration || 0) / 60)}분 {(currentLesson?.duration || 0) % 60}초</p>
+              <p className="text-sm text-[#635F69]">{Math.floor((currentLesson?.duration || 0) / 60)}분 {(currentLesson?.duration || 0) % 60}초</p>
             </div>
             <div className="flex items-center gap-2">
               {/* Mobile sidebar trigger */}
-              <Sheet><SheetTrigger asChild className='md:hidden'><Button variant='outline' size='sm' className='rounded-full'><Menu className='h-4 w-4' /></Button></SheetTrigger><SheetContent side='left' className='w-80 p-0'><SidebarContent /></SheetContent></Sheet>
-              {prevLesson && <Button variant='outline' size='sm' onClick={() => navigate(`/courses/${course.id}/learn?lesson=${prevLesson.id}`)} className='rounded-full hover:bg-purple-800 active:scale-95 transition-all duration-300 ease-in-out'><ChevronLeft className='h-4 w-4' />이전</Button>}
+              <Sheet><SheetTrigger asChild className='md:hidden'><Button variant='outline' size='sm' className='rounded-[20px]'><Menu className='h-4 w-4' /></Button></SheetTrigger><SheetContent side='left' className='w-80 p-0'><SidebarContent /></SheetContent></Sheet>
+              {prevLesson && <Button variant='outline' size='sm' onClick={() => navigate(`/courses/${course.id}/learn?lesson=${prevLesson.id}`)} className='rounded-[20px] hover:bg-#7C3AED active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 ease-in-out'><ChevronLeft className='h-4 w-4' />이전</Button>}
               {!watchedIds.has(currentLessonId) && currentLesson && (
-                <form method='post'><input type='hidden' name='lessonId' value={currentLesson.id} /><Button type='submit' size='sm' className='bg-[#7D5260] hover:bg-[#7D5260] hover:bg-purple-800 active:scale-95 transition-all duration-300 ease-in-out rounded-full'>완료</Button></form>
+                <form method='post'><input type='hidden' name='lessonId' value={currentLesson.id} /><Button type='submit' size='sm' className='bg-[#DB2777] hover:bg-[#DB2777] hover:bg-#7C3AED active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 ease-in-out rounded-[20px]'>완료</Button></form>
               )}
-              {nextLesson && <Button variant='outline' size='sm' onClick={() => navigate(`/courses/${course.id}/learn?lesson=${nextLesson.id}`)} className='rounded-full hover:bg-purple-800 active:scale-95 transition-all duration-300 ease-in-out'>다음<ChevronRight className='h-4 w-4' /></Button>}
+              {nextLesson && <Button variant='outline' size='sm' onClick={() => navigate(`/courses/${course.id}/learn?lesson=${nextLesson.id}`)} className='rounded-[20px] hover:bg-#7C3AED active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 ease-in-out'>다음<ChevronRight className='h-4 w-4' /></Button>}
             </div>
           </div>
         </div>

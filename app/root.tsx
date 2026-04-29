@@ -48,7 +48,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Meta />
         <Links />
       </head>
-      <body className="bg-background text-foreground antialiased">
+      <body className="bg-[#F4F1FA] text-foreground antialiased relative min-h-screen">
+        {/* Clay Background Blobs */}
+        <div className="pointer-events-none fixed inset-0 overflow-hidden -z-10" aria-hidden="true">
+          <div className="absolute h-[60vh] w-[60vh] rounded-full bg-[#8B5CF6]/10 blur-3xl -top-[10%] -left-[10%] animate-clay-float" />
+          <div className="absolute h-[50vh] w-[50vh] rounded-full bg-[#EC4899]/10 blur-3xl -right-[10%] top-[20%] animate-clay-float-delayed animation-delay-2000" />
+          <div className="absolute h-[55vh] w-[55vh] rounded-full bg-[#0EA5E9]/10 blur-3xl bottom-[10%] left-[20%] animate-clay-float-slow animation-delay-4000" />
+          <div className="absolute h-[40vh] w-[40vh] rounded-full bg-[#10B981]/10 blur-3xl bottom-[5%] right-[15%] animate-clay-float-delayed" />
+        </div>
+        {children}
         {children}
         <ScrollRestoration />
         <Scripts />

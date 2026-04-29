@@ -33,7 +33,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 const urgencyMap: Record<string, { label: string; color: string }> = {
   high: { label: '긴급', color: 'bg-red-100 text-red-700' },
   medium: { label: '보통', color: 'bg-yellow-100 text-yellow-700' },
-  low: { label: '여유', color: 'bg-[#E8DEF8] text-[#1D192B]' },
+  low: { label: '여유', color: 'bg-[#EDE9FE] text-[#332F3A]' },
 };
 
 export default function JobsPage() {
@@ -45,10 +45,10 @@ export default function JobsPage() {
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold">일거리 찾기</h1>
-          <p className="text-[#49454F] mt-1">새로운 프로젝트 기회를 찾아보세요</p>
+          <p className="text-[#635F69] mt-1">새로운 프로젝트 기회를 찾아보세요</p>
         </div>
         {currentUser?.role === 'client' && (
-          <Button asChild className="bg-[#6750A4] hover:bg-purple-800">
+          <Button asChild className="bg-[#7C3AED] hover:bg-#7C3AED">
             <Link to="/jobs/new"><Plus className="h-4 w-4 mr-2" />일거리 등록</Link>
           </Button>
         )}
@@ -68,28 +68,28 @@ export default function JobsPage() {
 
       <div className="grid gap-4">
         {allJobs.length === 0 ? (
-          <div className="text-center py-16 text-[#49454F]">등록된 일거리가 없습니다.</div>
+          <div className="text-center py-16 text-[#635F69]">등록된 일거리가 없습니다.</div>
         ) : allJobs.map((job) => (
           <Link to={`/jobs/${job.id}`} key={job.id}>
-            <div className="bg-[#FFFBFE] rounded-3xl p-6 mb-3 transition-all duration-300 ease-in-out hover:scale-[1.02] cursor-pointer">
+            <div className="bg-white/70 backdrop-blur-xl rounded-[32px] p-6 mb-3 shadow-clay-card hover:-translate-y-1 hover:shadow-clay-card-hover transition-all duration-500 cursor-pointer">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-lg font-bold hover:text-[#6750A4] transition-colors">{job.title}</h3>
+                    <h3 className="text-lg font-bold hover:text-[#7C3AED] transition-colors">{job.title}</h3>
                     {job.urgency && urgencyMap[job.urgency] && (
                       <Badge className={urgencyMap[job.urgency].color}>{urgencyMap[job.urgency].label}</Badge>
                     )}
                   </div>
-                  <div className="flex flex-wrap items-center gap-3 text-sm text-[#49454F]">
+                  <div className="flex flex-wrap items-center gap-3 text-sm text-[#635F69]">
                     {job.clientName && <span>{job.clientName}</span>}
-                    {job.categoryName && <Badge className="bg-gray-100 text-[#1C1B1F] border-0">{job.categoryName}</Badge>}
+                    {job.categoryName && <Badge className="bg-gray-100 text-[#332F3A] border-0">{job.categoryName}</Badge>}
                     <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{job.duration}</span>
                     <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{job.isRemote ? '원격' : job.location || '미정'}</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-6 text-sm">
                   <div className="text-right">
-                    <div className="font-bold text-[#6750A4]">
+                    <div className="font-bold text-[#7C3AED]">
                       {job.budgetType === 'negotiable' ? '협의' : `${((job.budgetMin || 0) / 10000).toFixed(0)}~${((job.budgetMax || 0) / 10000).toFixed(0)}만원`}
                     </div>
                     <div className="text-gray-400 flex items-center gap-3">

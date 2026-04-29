@@ -54,10 +54,10 @@ export async function action({ request }: ActionFunctionArgs) {
 
 const statusLabels: Record<string, { label: string; color: string }> = {
   pending: { label: '대기', color: 'bg-yellow-100 text-yellow-700' },
-  escrow: { label: '에스크로', color: 'bg-[#E8DEF8] text-blue-700' },
-  completed: { label: '완료', color: 'bg-[#E8DEF8] text-[#1D192B]' },
+  escrow: { label: '에스크로', color: 'bg-[#EDE9FE] text-blue-700' },
+  completed: { label: '완료', color: 'bg-[#EDE9FE] text-[#332F3A]' },
   refunded: { label: '환불', color: 'bg-red-100 text-red-700' },
-  cancelled: { label: '취소', color: 'bg-gray-100 text-[#1C1B1F]' },
+  cancelled: { label: '취소', color: 'bg-gray-100 text-[#332F3A]' },
 };
 
 export default function Admin() {
@@ -67,59 +67,59 @@ export default function Admin() {
     <div className="container mx-auto px-4 py-8">
       <h1 className='text-3xl font-bold mb-8'>관리자 패널</h1>
       <div className='grid grid-cols-2 md:grid-cols-4 gap-4 mb-8'>
-        <div className='bg-[#6750A4] text-white rounded-lg p-6 text-center hover:scale-[1.02] transition-all duration-300 ease-in-out'><Users className='h-8 w-8 text-purple-100 mx-auto mb-2' /><div className='text-2xl font-bold'>{stats.users}</div><div className='text-sm text-purple-100'>사용자</div></div>
-        <div className='bg-[#7D5260] text-white rounded-lg p-6 text-center hover:scale-[1.02] transition-all duration-300 ease-in-out'><Briefcase className='h-8 w-8 text-purple-100 mx-auto mb-2' /><div className='text-2xl font-bold'>{stats.jobs}</div><div className='text-sm text-purple-100'>일거리</div></div>
-        <div className='bg-purple-400 text-white rounded-lg p-6 text-center hover:scale-[1.02] transition-all duration-300 ease-in-out'><BookOpen className='h-8 w-8 text-purple-100 mx-auto mb-2' /><div className='text-2xl font-bold'>{stats.courses}</div><div className='text-sm text-purple-100'>강좌</div></div>
-        <div className='bg-[#1C1B1F] text-white rounded-lg p-6 text-center hover:scale-[1.02] transition-all duration-300 ease-in-out'><CreditCard className='h-8 w-8 text-purple-100 mx-auto mb-2' /><div className='text-2xl font-bold'>{new Intl.NumberFormat('ko-KR').format(stats.revenue)}원</div><div className='text-sm text-purple-100'>총 매출</div></div>
+        <div className='bg-[#7C3AED] text-white rounded-lg p-6 text-center hover:scale-[1.02] transition-all duration-200 ease-in-out'><Users className='h-8 w-8 text-purple-100 mx-auto mb-2' /><div className='text-2xl font-bold'>{stats.users}</div><div className='text-sm text-purple-100'>사용자</div></div>
+        <div className='bg-[#DB2777] text-white rounded-lg p-6 text-center hover:scale-[1.02] transition-all duration-200 ease-in-out'><Briefcase className='h-8 w-8 text-purple-100 mx-auto mb-2' /><div className='text-2xl font-bold'>{stats.jobs}</div><div className='text-sm text-purple-100'>일거리</div></div>
+        <div className='bg-purple-400 text-white rounded-lg p-6 text-center hover:scale-[1.02] transition-all duration-200 ease-in-out'><BookOpen className='h-8 w-8 text-purple-100 mx-auto mb-2' /><div className='text-2xl font-bold'>{stats.courses}</div><div className='text-sm text-purple-100'>강좌</div></div>
+        <div className='bg-[#332F3A] text-white rounded-lg p-6 text-center hover:scale-[1.02] transition-all duration-200 ease-in-out'><CreditCard className='h-8 w-8 text-purple-100 mx-auto mb-2' /><div className='text-2xl font-bold'>{new Intl.NumberFormat('ko-KR').format(stats.revenue)}원</div><div className='text-sm text-purple-100'>총 매출</div></div>
       </div>
 
       <Tabs defaultValue='users'>
-        <TabsList className='mb-6 bg-gray-100 rounded-full'><TabsTrigger value='users'>사용자</TabsTrigger><TabsTrigger value='jobs'>일거리</TabsTrigger><TabsTrigger value='courses'>강좌</TabsTrigger><TabsTrigger value='payments'>결제</TabsTrigger></TabsList>
+        <TabsList className='mb-6 bg-gray-100 rounded-[20px]'><TabsTrigger value='users'>사용자</TabsTrigger><TabsTrigger value='jobs'>일거리</TabsTrigger><TabsTrigger value='courses'>강좌</TabsTrigger><TabsTrigger value='payments'>결제</TabsTrigger></TabsList>
 
         <TabsContent value='users'>
-          <div className='bg-[#F3EDF7] rounded-3xl overflow-hidden'>
+          <div className='bg-[#EDE9FE] rounded-[32px] overflow-hidden'>
             <table className='w-full'><thead className='bg-gray-100'><tr><th className='text-left p-3 text-sm'>이름</th><th className='text-left p-3 text-sm'>이메일</th><th className='text-left p-3 text-sm'>역할</th><th className='text-left p-3 text-sm'>평점</th><th className='p-3 text-sm'>변경</th></tr></thead>
             <tbody>
               {allUsers.map((u) => (
-                <tr key={u.id} className='bg-white'><td className='p-3'>{u.name || '-'}</td><td className='p-3 text-sm text-[#49454F]'>{u.email}</td><td className='p-3'><Badge variant='outline'>{u.role}</Badge></td><td className='p-3'>{u.rating > 0 ? u.rating : '-'}</td>
-                  <td className='p-3'><form method='post' className='flex gap-1'><input type='hidden' name='userId' value={u.id} /><input type='hidden' name='_action' value='updateRole' /><select name='role' className='bg-[#E7E0EC] rounded-t-xl border-0 border-b-2 border-gray-400 text-xs px-2 py-1' defaultValue={u.role}><option value='worker'>worker</option><option value='client'>client</option><option value='admin'>admin</option></select><Button type='submit' size='sm' variant='outline' className='text-xs h-6 rounded-full hover:bg-purple-800 active:scale-95 transition-all duration-300 ease-in-out'>변경</Button></form></td></tr>
+                <tr key={u.id} className='bg-white'><td className='p-3'>{u.name || '-'}</td><td className='p-3 text-sm text-[#635F69]'>{u.email}</td><td className='p-3'><Badge variant='outline'>{u.role}</Badge></td><td className='p-3'>{u.rating > 0 ? u.rating : '-'}</td>
+                  <td className='p-3'><form method='post' className='flex gap-1'><input type='hidden' name='userId' value={u.id} /><input type='hidden' name='_action' value='updateRole' /><select name='role' className='bg-[#EDE9FE] rounded-t-xl border-0 border-b-2 border-gray-400 text-xs px-2 py-1' defaultValue={u.role}><option value='worker'>worker</option><option value='client'>client</option><option value='admin'>admin</option></select><Button type='submit' size='sm' variant='outline' className='text-xs h-6 rounded-[20px] hover:bg-#7C3AED active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 ease-in-out'>변경</Button></form></td></tr>
               ))}
             </tbody></table>
           </div>
         </TabsContent>
 
         <TabsContent value='jobs'>
-          <div className='bg-[#F3EDF7] rounded-3xl overflow-hidden'>
+          <div className='bg-[#EDE9FE] rounded-[32px] overflow-hidden'>
             <table className='w-full'><thead className='bg-gray-100'><tr><th className='text-left p-3 text-sm'>제목</th><th className='text-left p-3 text-sm'>의뢰자</th><th className='text-left p-3 text-sm'>상태</th><th className='text-left p-3 text-sm'>지원수</th><th className='p-3 text-sm'>변경</th></tr></thead>
             <tbody>
               {allJobs.map((j) => (
-                <tr key={j.id} className='bg-white'><td className='p-3'>{j.title}</td><td className='p-3 text-sm'>{j.clientName || '-'}</td><td className='p-3'><Badge className={`rounded-full ${j.status === 'open' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-[#1C1B1F]'}`}>{j.status}</Badge></td><td className='p-3'>{j.applicationCount}</td>
-                  <td className='p-3'><form method='post' className='flex gap-1'><input type='hidden' name='jobId' value={j.id} /><input type='hidden' name='_action' value='updateJobStatus' /><select name='status' className='bg-[#E7E0EC] rounded-t-xl border-0 border-b-2 border-gray-400 text-xs px-2 py-1' defaultValue={j.status}><option value='open'>open</option><option value='in_progress'>in_progress</option><option value='completed'>completed</option><option value='closed'>closed</option></select><Button type='submit' size='sm' variant='outline' className='text-xs h-6 rounded-full hover:bg-purple-800 active:scale-95 transition-all duration-300 ease-in-out'>변경</Button></form></td></tr>
+                <tr key={j.id} className='bg-white'><td className='p-3'>{j.title}</td><td className='p-3 text-sm'>{j.clientName || '-'}</td><td className='p-3'><Badge className={`rounded-[20px] ${j.status === 'open' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-[#332F3A]'}`}>{j.status}</Badge></td><td className='p-3'>{j.applicationCount}</td>
+                  <td className='p-3'><form method='post' className='flex gap-1'><input type='hidden' name='jobId' value={j.id} /><input type='hidden' name='_action' value='updateJobStatus' /><select name='status' className='bg-[#EDE9FE] rounded-t-xl border-0 border-b-2 border-gray-400 text-xs px-2 py-1' defaultValue={j.status}><option value='open'>open</option><option value='in_progress'>in_progress</option><option value='completed'>completed</option><option value='closed'>closed</option></select><Button type='submit' size='sm' variant='outline' className='text-xs h-6 rounded-[20px] hover:bg-#7C3AED active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 ease-in-out'>변경</Button></form></td></tr>
               ))}
             </tbody></table>
           </div>
         </TabsContent>
 
         <TabsContent value='courses'>
-          <div className='bg-[#F3EDF7] rounded-3xl overflow-hidden'>
+          <div className='bg-[#EDE9FE] rounded-[32px] overflow-hidden'>
             <table className='w-full'><thead className='bg-gray-100'><tr><th className='text-left p-3 text-sm'>제목</th><th className='text-left p-3 text-sm'>강사</th><th className='text-left p-3 text-sm'>가격</th><th className='text-left p-3 text-sm'>수강생</th><th className='text-left p-3 text-sm'>상태</th><th className='p-3 text-sm'>변경</th></tr></thead>
             <tbody>
               {allCourses.map((c) => (
-                <tr key={c.id} className='bg-white'><td className='p-3'>{c.title}</td><td className='p-3 text-sm'>{c.instructorName || '-'}</td><td className='p-3'>{c.price === 0 ? '무료' : `${new Intl.NumberFormat('ko-KR').format(c.price)}원`}</td><td className='p-3'>{c.enrollmentCount}</td><td className='p-3'><Badge variant='outline' className='rounded-full'>{c.status}</Badge></td>
-                  <td className='p-3'><form method='post' className='flex gap-1'><input type='hidden' name='courseId' value={c.id} /><input type='hidden' name='_action' value='updateCourseStatus' /><select name='status' className='bg-[#E7E0EC] rounded-t-xl border-0 border-b-2 border-gray-400 text-xs px-2 py-1' defaultValue={c.status}><option value='draft'>draft</option><option value='published'>published</option><option value='archived'>archived</option></select><Button type='submit' size='sm' variant='outline' className='text-xs h-6 rounded-full hover:bg-purple-800 active:scale-95 transition-all duration-300 ease-in-out'>변경</Button></form></td></tr>
+                <tr key={c.id} className='bg-white'><td className='p-3'>{c.title}</td><td className='p-3 text-sm'>{c.instructorName || '-'}</td><td className='p-3'>{c.price === 0 ? '무료' : `${new Intl.NumberFormat('ko-KR').format(c.price)}원`}</td><td className='p-3'>{c.enrollmentCount}</td><td className='p-3'><Badge variant='outline' className='rounded-[20px]'>{c.status}</Badge></td>
+                  <td className='p-3'><form method='post' className='flex gap-1'><input type='hidden' name='courseId' value={c.id} /><input type='hidden' name='_action' value='updateCourseStatus' /><select name='status' className='bg-[#EDE9FE] rounded-t-xl border-0 border-b-2 border-gray-400 text-xs px-2 py-1' defaultValue={c.status}><option value='draft'>draft</option><option value='published'>published</option><option value='archived'>archived</option></select><Button type='submit' size='sm' variant='outline' className='text-xs h-6 rounded-[20px] hover:bg-#7C3AED active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 ease-in-out'>변경</Button></form></td></tr>
               ))}
             </tbody></table>
           </div>
         </TabsContent>
 
         <TabsContent value='payments'>
-          <div className='bg-[#F3EDF7] rounded-3xl overflow-hidden'>
+          <div className='bg-[#EDE9FE] rounded-[32px] overflow-hidden'>
             <table className='w-full'><thead className='bg-gray-100'><tr><th className='text-left p-3 text-sm'>결제자</th><th className='text-left p-3 text-sm'>금액</th><th className='text-left p-3 text-sm'>유형</th><th className='text-left p-3 text-sm'>수단</th><th className='text-left p-3 text-sm'>상태</th><th className='p-3 text-sm'>액션</th></tr></thead>
             <tbody>
               {allPayments.map((p) => (
-                <tr key={p.id} className='bg-white'><td className='p-3 text-sm'>{p.payerEmail || '-'}</td><td className='p-3 font-medium'>{new Intl.NumberFormat('ko-KR').format(p.amount)}원</td><td className='p-3'><Badge variant='outline' className='rounded-full'>{p.type}</Badge></td><td className='p-3 text-sm'>{p.paymentMethod}</td>
-                  <td className='p-3'>{statusLabels[p.status] && <Badge className={`rounded-full ${statusLabels[p.status].color}`}>{statusLabels[p.status].label}</Badge>}</td>
-                  <td className='p-3'>{p.status === 'escrow' && <form method='post'><input type='hidden' name='paymentId' value={p.id} /><input type='hidden' name='_action' value='releaseEscrow' /><Button type='submit' size='sm' className='bg-[#7D5260] hover:bg-[#7D5260] hover:bg-purple-800 active:scale-95 transition-all duration-300 ease-in-out rounded-full text-xs h-6'>해제</Button></form>}</td></tr>
+                <tr key={p.id} className='bg-white'><td className='p-3 text-sm'>{p.payerEmail || '-'}</td><td className='p-3 font-medium'>{new Intl.NumberFormat('ko-KR').format(p.amount)}원</td><td className='p-3'><Badge variant='outline' className='rounded-[20px]'>{p.type}</Badge></td><td className='p-3 text-sm'>{p.paymentMethod}</td>
+                  <td className='p-3'>{statusLabels[p.status] && <Badge className={`rounded-[20px] ${statusLabels[p.status].color}`}>{statusLabels[p.status].label}</Badge>}</td>
+                  <td className='p-3'>{p.status === 'escrow' && <form method='post'><input type='hidden' name='paymentId' value={p.id} /><input type='hidden' name='_action' value='releaseEscrow' /><Button type='submit' size='sm' className='bg-[#DB2777] hover:bg-[#DB2777] hover:bg-#7C3AED active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 ease-in-out rounded-[20px] text-xs h-6'>해제</Button></form>}</td></tr>
               ))}
             </tbody></table>
           </div>

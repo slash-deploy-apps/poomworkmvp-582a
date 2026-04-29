@@ -13,16 +13,16 @@ export function Header({ user }: { user?: { id: string; name: string | null; ema
   ];
 
   return (
-    <header className='sticky top-0 z-50 w-full border-b border-[#79747E]/20 bg-[#FFFBFE]/80 backdrop-blur-md transition-all duration-300'>
-      <div className='container mx-auto flex h-16 items-center justify-between px-4'>
+    <header className='sticky top-0 z-50 w-full px-4 pt-3 transition-all duration-300'>
+      <div className='container mx-auto flex h-16 sm:h-20 items-center justify-between px-6 sm:px-8 rounded-[32px] sm:rounded-[40px] bg-white/70 backdrop-blur-xl shadow-clay-card'>
         <div className='flex items-center gap-8'>
           <Link to='/' className='flex items-center gap-2'>
-            <Briefcase className='h-7 w-7 text-[#6750A4]' />
-            <span className='text-xl font-bold text-[#1C1B1F]'>poomwork</span>
+            <Briefcase className='h-7 w-7 text-[#7C3AED]' />
+            <span className='text-xl font-black text-[#332F3A]' style={{ fontFamily: "'Nunito', sans-serif" }}>poomwork</span>
           </Link>
           <nav className='hidden md:flex items-center gap-2'>
             {navLinks.map((link) => (
-              <Link key={link.href} to={link.href} className='rounded-full px-4 py-2 text-sm font-medium text-[#49454F] hover:bg-[#6750A4]/10 transition-all duration-300 ease-in-out'>
+              <Link key={link.href} to={link.href} className='rounded-[20px] px-4 py-2 text-sm font-medium text-[#635F69] hover:bg-[#7C3AED]/10 hover:text-[#7C3AED] transition-all duration-200'>
                 {link.label}
               </Link>
             ))}
@@ -33,9 +33,9 @@ export function Header({ user }: { user?: { id: string; name: string | null; ema
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant='ghost' className='relative h-10 w-10 rounded-full hover:bg-[#6750A4]/10 transition-all duration-300'>
+                <Button variant='ghost' className='relative h-10 w-10 rounded-full hover:bg-[#7C3AED]/10 transition-all duration-200'>
                   <Avatar className='h-10 w-10'>
-                    <AvatarFallback className='bg-[#E8DEF8] text-[#1D192B] font-bold'>
+                    <AvatarFallback className='bg-gradient-to-br from-[#A78BFA] to-[#7C3AED] text-white font-bold'>
                       {(user.name || user.email)[0].toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
@@ -43,8 +43,8 @@ export function Header({ user }: { user?: { id: string; name: string | null; ema
               </DropdownMenuTrigger>
               <DropdownMenuContent className='w-48' align='end'>
                 <div className='px-2 py-1.5'>
-                  <p className='text-sm font-medium text-[#1C1B1F]'>{user.name || user.email}</p>
-                  <p className='text-xs text-[#49454F]'>{user.role === 'worker' ? '인력 제공자' : user.role === 'client' ? '일거리 제공자' : '관리자'}</p>
+                  <p className='text-sm font-medium text-[#332F3A]'>{user.name || user.email}</p>
+                  <p className='text-xs text-[#635F69]'>{user.role === 'worker' ? '인력 제공자' : user.role === 'client' ? '일거리 제공자' : '관리자'}</p>
                 </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
@@ -68,10 +68,10 @@ export function Header({ user }: { user?: { id: string; name: string | null; ema
             </DropdownMenu>
           ) : (
             <div className='hidden md:flex items-center gap-2'>
-              <Button variant='ghost' asChild className='rounded-full text-[#6750A4] hover:bg-[#6750A4]/10 transition-all duration-300'>
+              <Button variant='ghost' asChild className='rounded-[20px] text-[#7C3AED] hover:bg-[#7C3AED]/10 transition-all duration-200'>
                 <Link to='/login'>로그인</Link>
               </Button>
-              <Button asChild className='rounded-full bg-[#6750A4] text-white hover:bg-[#6750A4]/90 active:scale-95 shadow-sm hover:shadow-md transition-all duration-300 ease-in-out px-6'>
+              <Button asChild className='rounded-[20px] bg-gradient-to-br from-[#A78BFA] to-[#7C3AED] text-white shadow-clay-button hover:-translate-y-1 hover:shadow-clay-button-hover active:scale-[0.92] active:shadow-clay-pressed font-bold px-6 transition-all duration-200'>
                 <Link to='/register'>회원가입</Link>
               </Button>
             </div>
@@ -80,27 +80,27 @@ export function Header({ user }: { user?: { id: string; name: string | null; ema
           {/* Mobile menu */}
           <Sheet>
             <SheetTrigger asChild className='md:hidden'>
-              <Button variant='ghost' size='icon' className='text-[#1C1B1F] hover:bg-[#6750A4]/10 rounded-full'>
+              <Button variant='ghost' size='icon' className='text-[#332F3A] hover:bg-[#7C3AED]/10 rounded-[20px]'>
                 <Menu className='h-5 w-5' />
               </Button>
             </SheetTrigger>
-            <SheetContent side='right' className='w-72 bg-[#FFFBFE] text-[#1C1B1F] border-[#79747E]/20'>
+            <SheetContent side='right' className='w-72 bg-white/90 backdrop-blur-xl text-[#332F3A] border-[#7C3AED]/15 rounded-l-[32px]'>
               <nav className='flex flex-col gap-2 mt-8'>
                 {navLinks.map((link) => (
-                  <Link key={link.href} to={link.href} className='rounded-full px-4 py-3 text-base font-medium text-[#49454F] hover:bg-[#6750A4]/10 hover:text-[#6750A4] transition-all duration-300'>
+                  <Link key={link.href} to={link.href} className='rounded-[20px] px-4 py-3 text-base font-medium text-[#635F69] hover:bg-[#7C3AED]/10 hover:text-[#7C3AED] transition-all duration-200'>
                     {link.label}
                   </Link>
                 ))}
                 <div className='pt-4 mt-2 space-y-1'>
                   {user ? (
                     <>
-                      <Link to='/dashboard' className='block rounded-full px-4 py-2 text-base font-medium text-[#49454F] hover:bg-[#6750A4]/10'>대시보드</Link>
-                      <a href='/api/auth/sign-out' data-method='POST' className='block rounded-full px-4 py-2 text-base font-medium text-[#49454F] hover:bg-[#6750A4]/10'>로그아웃</a>
+                      <Link to='/dashboard' className='block rounded-[20px] px-4 py-2 text-base font-medium text-[#635F69] hover:bg-[#7C3AED]/10'>대시보드</Link>
+                      <a href='/api/auth/sign-out' data-method='POST' className='block rounded-[20px] px-4 py-2 text-base font-medium text-[#635F69] hover:bg-[#7C3AED]/10'>로그아웃</a>
                     </>
                   ) : (
                     <>
-                      <Link to='/login' className='block rounded-full px-4 py-2 text-base font-medium text-[#49454F] hover:bg-[#6750A4]/10'>로그인</Link>
-                      <Link to='/register' className='block rounded-full px-4 py-2 text-base font-bold text-[#6750A4]'>회원가입</Link>
+                      <Link to='/login' className='block rounded-[20px] px-4 py-2 text-base font-medium text-[#635F69] hover:bg-[#7C3AED]/10'>로그인</Link>
+                      <Link to='/register' className='block rounded-[20px] px-4 py-2 text-base font-bold text-[#7C3AED]'>회원가입</Link>
                     </>
                   )}
                 </div>
