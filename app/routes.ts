@@ -3,10 +3,14 @@ import { type RouteConfig, index, route } from '@react-router/dev/routes';
 export default [
   index('routes/_index.tsx'),
   route('api/auth/*', 'routes/api.auth.$.ts'),
+  route('api/uploadthing', 'routes/api.uploadthing.ts'),
+  route('api/upload', 'routes/api.upload.ts'),
+
 
   // Auth
   route('login', 'routes/login.tsx'),
   route('register', 'routes/register.tsx'),
+  route('logout', 'routes/logout.tsx'),
 
   // Jobs (일거리)
   route('jobs', 'routes/jobs.tsx'),
@@ -19,8 +23,10 @@ export default [
 
   // Education (교육)
   route('courses', 'routes/courses.tsx'),
+  route('courses/new', 'routes/courses-new.tsx'),
   route('courses/:courseId', 'routes/courses-detail.tsx'),
   route('courses/:courseId/learn', 'routes/courses-learn.tsx'),
+  route('my/courses', 'routes/my-courses.tsx'),
 
   // Dashboard
   route('dashboard', 'routes/dashboard.tsx'),

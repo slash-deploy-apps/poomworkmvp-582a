@@ -18,6 +18,7 @@ export const user = sqliteTable('user', (d) => ({
   bio: d.text(),
   skills: d.text(),
   location: d.text({ length: 255 }),
+  coverImage: d.text({ length: 500 }),
   rating: d.real().default(0).notNull(),
   reviewCount: d.integer({ mode: 'number' }).default(0).notNull(),
   createdAt: d
@@ -117,10 +118,10 @@ export const categories = sqliteTable(
     name: d.text({ length: 100 }).notNull(),
     slug: d.text({ length: 100 }).notNull().unique(),
     icon: d.text({ length: 50 }),
-    parentId: d.integer({ mode: 'number' }).references(() => categories.id),
+    parentId: d.integer({ mode: 'number' }).references((): any => categories.id),
     sortOrder: d.integer({ mode: 'number' }).default(0).notNull(),
   }),
-  (t) => [index('categories_parent_id_idx').on(t.parentId)],
+  (t) => [index('categories_parent_id_idx').on(t.parentId as any)],
 );
 
 // ─── Jobs (일거리) ────────────────────────────────────────────────────────
@@ -153,6 +154,7 @@ export const jobs = sqliteTable(
     isRemote: d.integer({ mode: 'number' }).default(1).notNull(),
     views: d.integer({ mode: 'number' }).default(0).notNull(),
     applicationCount: d.integer({ mode: 'number' }).default(0).notNull(),
+    thumbnailUrl: d.text({ length: 500 }),
     createdAt: d
       .integer({ mode: 'timestamp' })
       .default(sql`(unixepoch())`)

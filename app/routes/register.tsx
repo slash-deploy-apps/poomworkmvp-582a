@@ -31,7 +31,7 @@ export default function Register() {
       email: formData.get('email') as string,
       password: formData.get('password') as string,
     };
-    const { error: signUpError } = await authClient.signUp.email({ ...data, name: data.name, role });
+    const { error: signUpError } = await (authClient.signUp.email as any)({ ...data, name: data.name, role });
     setLoading(false);
     if (signUpError) { setError(signUpError.message || '회원가입에 실패했습니다.'); return; }
     window.location.href = '/dashboard';

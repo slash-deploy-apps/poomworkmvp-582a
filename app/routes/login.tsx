@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { Link, redirect } from 'react-router';
-import type { MetaFunction, LoaderFunctionArgs, ActionFunctionArgs } from 'react-router';
+import type { MetaFunction, LoaderFunctionArgs } from 'react-router';
 import { Mail, Lock, Briefcase } from 'lucide-react';
 import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
 import { auth } from '~/lib/auth.server';
-import { authClient } from '~/lib/auth-client';
 
 export const meta: MetaFunction = () => [{ title: '로그인 - poomwork' }];
 
@@ -14,16 +13,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
   if (session) return redirect('/dashboard');
   return {};
 }
-
-export async function action({ request }: ActionFunctionArgs) {
-  const formData = await request.formData();
-  const email = formData.get('email') as string;
-  const password = formData.get('password') as string;
-  const { error } = await authClient.signIn.email({ email, password });
-  if (error) return { error: error.message || '로그인에 실패했습니다.' };
-  return redirect('/dashboard');
-}
-
 export default function Login() {
   const [error, setError] = useState<string | null>(null);
 
@@ -31,9 +20,24 @@ export default function Login() {
     e.preventDefault();
     setError(null);
     const formData = new FormData(e.currentTarget);
-    const res = await fetch('/login', { method: 'POST', body: formData });
-    if (res.ok) { window.location.href = '/dashboard'; }
-    else { const data = await res.json(); setError(data.error || '로그인에 실패했습니다.'); }
+    const email = formData.get('email') as string;
+    const password = formData.get('password') as string;
+    try {
+      const res = await fetch('/api/auth/sign-in/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+        credentials: 'include',
+      });
+      if (res.ok) {
+        window.location.href = '/dashboard';
+      } else {
+        const data = await res.json();
+        setError(data.message || '로그인에 실패했습니다.');
+      }
+    } catch {
+      setError('로그인에 실패했습니다.');
+    }
   };
 
   return (

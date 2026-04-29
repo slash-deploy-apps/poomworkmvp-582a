@@ -37,7 +37,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
   await db.insert(lessonProgress).values({ enrollmentId: enrollment[0].id, lessonId }).onConflictDoNothing();
   const totalLessons = await db.select({ count: sql<number>`count(*)` }).from(courseLessons).where(eq(courseLessons.courseId, params.courseId!));
   const watchedCount = await db.select({ count: sql<number>`count(*)` }).from(lessonProgress).where(eq(lessonProgress.enrollmentId, enrollment[0].id));
-  const progressPct = totalLessons[0]?.count > 0 ? (Number(watchedCount[0]?.count || 0) / Number(totalLessons[0].count)) * 100 : 0;
+  const progressPct = (totalLessons[0]?.count ?? 0) > 0 ? (Number(watchedCount[0]?.count ?? 0) / Number(totalLessons[0]?.count ?? 1)) * 100 : 0;
   const completedAt = progressPct >= 100 ? new Date() : null;
   await db.update(enrollments).set({ progress: progressPct, completedAt }).where(eq(enrollments.id, enrollment[0].id));
   return null;
@@ -105,8 +105,8 @@ export default function CourseLearn() {
             <div className="flex items-center gap-2">
               {/* Mobile sidebar trigger */}
               <Sheet><SheetTrigger asChild className='md:hidden'><Button variant='outline' size='sm' className='rounded-[20px]'><Menu className='h-4 w-4' /></Button></SheetTrigger><SheetContent side='left' className='w-80 p-0'><SidebarContent /></SheetContent></Sheet>
-              {prevLesson && <Button variant='outline' size='sm' onClick={() => navigate(`/courses/${course.id}/learn?lesson=${prevLesson.id}`)} className='rounded-[20px] hover:bg-#7C3AED active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 ease-in-out'><ChevronLeft className='h-4 w-4' />이전</Button>}
-              {!watchedIds.has(currentLessonId) && currentLesson && (
+              {prevLesson && <Button variant='outline' size='sm' onClick={() => navigate(`/courses/${course.id}/learn?lesson=${prevLesson!.id}`)} className='rounded-[20px] hover:bg-#7C3AED active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 ease-in-out'><ChevronLeft className='h-4 w-4' />이전</Button>}
+              {!!currentLessonId && !watchedIds.has(currentLessonId) && currentLesson && (
                 <form method='post'><input type='hidden' name='lessonId' value={currentLesson.id} /><Button type='submit' size='sm' className='bg-[#DB2777] hover:bg-[#DB2777] hover:bg-#7C3AED active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 ease-in-out rounded-[20px]'>완료</Button></form>
               )}
               {nextLesson && <Button variant='outline' size='sm' onClick={() => navigate(`/courses/${course.id}/learn?lesson=${nextLesson.id}`)} className='rounded-[20px] hover:bg-#7C3AED active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 ease-in-out'>다음<ChevronRight className='h-4 w-4' /></Button>}

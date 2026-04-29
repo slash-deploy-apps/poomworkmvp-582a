@@ -44,6 +44,11 @@ export const auth = betterAuth({
         required: false,
         input: true,
       },
+      coverImage: {
+        type: 'string',
+        required: false,
+        input: true,
+      },
     },
   },
   ...(useSecureCrossSiteCookies
@@ -52,6 +57,7 @@ export const auth = betterAuth({
           defaultCookieAttributes: {
             sameSite: 'none',
             secure: true,
+            partitioned: true,
           },
         },
       }

@@ -16,6 +16,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     id: courses.id, title: courses.title, price: courses.price, level: courses.level,
     duration: courses.duration, rating: courses.rating, reviewCount: courses.reviewCount,
     enrollmentCount: courses.enrollmentCount, instructorName: user.name,
+    thumbnailUrl: courses.thumbnailUrl,
     categoryName: categories.name,
   }).from(courses).leftJoin(user, eq(courses.instructorId, user.id))
     .leftJoin(categories, eq(courses.categoryId, categories.id))
@@ -47,12 +48,16 @@ export default function CoursesPage() {
         {allCourses.map((c, i) => (
           <Link to={`/courses/${c.id}`} key={c.id}>
             <div className="bg-[#F4F1FA] rounded-[32px] overflow-hidden transition-all duration-200 ease-in-out hover:scale-[1.02] cursor-pointer">
-              <div className={`h-40 bg-gradient-to-br ${gradients[i % gradients.length]} flex items-center justify-center`}>
-                <GraduationCap className="h-16 w-16 text-white/40" />
-              </div>
+              {c.thumbnailUrl ? (
+                <img src={c.thumbnailUrl} alt='' className='w-full h-40 object-cover' />
+              ) : (
+                <div className={`h-40 bg-gradient-to-br ${gradients[i % gradients.length]} flex items-center justify-center`}>
+                  <GraduationCap className='h-16 w-16 text-white/40' />
+                </div>
+              )}
               <div className="p-5">
                 <div className="flex items-center gap-2 mb-2">
-                  {levelMap[c.level] && <Badge className={levelMap[c.level].color}>{levelMap[c.level].label}</Badge>}
+                  {levelMap[c.level] && <Badge className={levelMap[c.level]!.color}>{levelMap[c.level]!.label}</Badge>}
                   {c.categoryName && <Badge className="bg-gray-100 text-[#332F3A] border-0">{c.categoryName}</Badge>}
                 </div>
                 <h3 className="font-bold text-lg mb-2 line-clamp-2">{c.title}</h3>

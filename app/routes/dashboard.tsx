@@ -45,7 +45,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     const [userCount] = await db.select({ count: sql<number>`count(*)` }).from(user);
     const [jobCount] = await db.select({ count: sql<number>`count(*)` }).from(jobs);
     const [courseCount] = await db.select({ count: sql<number>`count(*)` }).from(courses);
-    data.stats = { users: userCount.count, jobs: jobCount.count, courses: courseCount.count };
+    data.stats = { users: userCount?.count ?? 0, jobs: jobCount?.count ?? 0, courses: courseCount?.count ?? 0 };
   }
 
   return data;
@@ -90,8 +90,18 @@ export default function Dashboard() {
         <h1 className="text-3xl font-extrabold" style={{ fontFamily: "'Nunito', sans-serif" }}>대시보드</h1>
         <p className="text-[#635F69] mt-1">{u.name || u.email}님, 안녕하세요 ({u.role === 'worker' ? '인력 제공자' : u.role === 'client' ? '일거리 제공자' : '관리자'})</p>
         <div className='flex gap-2 mt-2'>
-          <Link to="/profile/edit" className="inline-block px-5 py-2 rounded-[20px] bg-white/70 backdrop-blur-xl shadow-clay-card text-[#332F3A] text-sm font-bold active:scale-[0.92] transition-all duration-200">프로필 편집</Link>
-          <Link to="/messages" className="inline-block px-5 py-2 rounded-[20px] bg-gradient-to-br from-[#A78BFA] to-[#7C3AED] text-white text-sm font-bold shadow-clay-button active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200">메시지</Link>
+          <Link to='/profile/edit' className='inline-block px-5 py-2 rounded-[20px] bg-white/70 backdrop-blur-xl shadow-clay-card text-[#332F3A] text-sm font-bold active:scale-[0.92] transition-all duration-200'>프로필 편집</Link>
+          <Link to='/messages' className='inline-block px-5 py-2 rounded-[20px] bg-gradient-to-br from-[#A78BFA] to-[#7C3AED] text-white text-sm font-bold shadow-clay-button active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200'>메시지</Link>
+          {u.role !== 'admin' && (
+            <>
+              <Link to='/my/courses' className='inline-block px-5 py-2 rounded-[20px] bg-white/70 backdrop-blur-xl shadow-clay-card text-[#332F3A] text-sm font-bold active:scale-[0.92] transition-all duration-200'>
+                <GraduationCap className='h-4 w-4 inline mr-1' />내 강좌
+              </Link>
+              <Link to='/courses/new' className='inline-block px-5 py-2 rounded-[20px] bg-[#7C3AED] text-white text-sm font-bold shadow-clay-button active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200'>
+                <GraduationCap className='h-4 w-4 inline mr-1' />새 강좌 만들기
+              </Link>
+            </>
+          )}
         </div>
       </div>
 

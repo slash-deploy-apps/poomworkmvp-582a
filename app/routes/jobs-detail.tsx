@@ -1,8 +1,9 @@
+import { ImageUploader } from '~/components/image-uploader';
 import { useState } from 'react';
 import { Link, redirect, useLoaderData } from 'react-router';
 import type { MetaFunction, LoaderFunctionArgs, ActionFunctionArgs } from 'react-router';
 import { and, desc, eq, sql } from 'drizzle-orm';
-import { ArrowLeft, MapPin, Clock, Users, Eye, Star, Briefcase } from 'lucide-react';
+import { ArrowLeft, MapPin, Clock, Users, Eye, Star, Briefcase, Camera, X } from 'lucide-react';
 import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
 import { Textarea } from '~/components/ui/textarea';
@@ -43,7 +44,16 @@ export async function action({ request, params }: ActionFunctionArgs) {
     const comment = formData.get('comment') as string;
     await db.insert(reviews).values({ reviewerId: session.user.id, revieweeId, jobId: params.jobId!, rating, comment });
     const [avg] = await db.select({ avg: sql<number>`coalesce(avg(${reviews.rating}), 0)`, count: sql<number>`count(*)` }).from(reviews).where(eq(reviews.revieweeId, revieweeId));
-    await db.update(user).set({ rating: Math.round(avg.avg * 10) / 10, reviewCount: avg.count }).where(eq(user.id, revieweeId));
+    await db.update(user).set({ rating: Math.round((avg?.avg ?? 0) * 10) / 10, reviewCount: avg?.count ?? 0 }).where(eq(user.id, revieweeId));
+    return redirect(`/jobs/${params.jobId}`);
+  }
+  if (actionType === 'updateThumbnail') {
+    const thumbnailUrl = formData.get('thumbnailUrl') as string || null;
+    await db.update(jobs).set({ thumbnailUrl }).where(eq(jobs.id, params.jobId!));
+    return redirect(`/jobs/${params.jobId}`);
+  }
+  if (actionType === 'deleteThumbnail') {
+    await db.update(jobs).set({ thumbnailUrl: null }).where(eq(jobs.id, params.jobId!));
     return redirect(`/jobs/${params.jobId}`);
   }
   await db.insert(jobApplications).values({
@@ -74,6 +84,38 @@ export default function JobDetail() {
       <Link to="/jobs" className="inline-flex items-center text-sm text-[#635F69] hover:text-[#7C3AED] mb-6">
         <ArrowLeft className="h-4 w-4 mr-1" />목록으로 돌아가기
       </Link>
+          {/* Thumbnail */}
+          {job.thumbnailUrl ? (
+            <div className='relative mb-6'>
+              <img src={job.thumbnailUrl} alt='' className='w-full max-h-64 object-cover rounded-[32px]' />
+              {currentUser && currentUser.id === job.clientId && (
+                <div className='absolute top-3 right-3 flex gap-2'>
+                  <button type='button' onClick={() => { const el = document.getElementById('job-thumbnail-upload'); el?.click(); }} className='p-2 bg-white/90 rounded-full hover:bg-white shadow-lg'>
+                    <Camera className='h-4 w-4 text-[#332F3A]' />
+                  </button>
+                  <form method='post' className='inline'>
+                    <input type='hidden' name='_action' value='deleteThumbnail' />
+                    <button type='submit' className='p-2 bg-white/90 rounded-full hover:bg-white shadow-lg'>
+                      <X className='h-4 w-4 text-red-500' />
+                    </button>
+                  </form>
+                </div>
+              )}
+            </div>
+          ) : (
+            currentUser && currentUser.id === job.clientId && (
+              <div className='bg-[#EDE9FE] rounded-[32px] p-6 mb-6 text-center'>
+                <p className='text-[#635F69] text-sm mb-3'>썸네일 이미지를 추가하세요</p>
+                <ImageUploader endpoint='jobThumbnail' onUploadComplete={(url) => {
+                  const form = document.createElement('form');
+                  form.method = 'post';
+                  form.innerHTML = `<input type='hidden' name='_action' value='updateThumbnail' /><input type='hidden' name='thumbnailUrl' value='${url}' />`;
+                  document.body.appendChild(form);
+                  form.submit();
+                }} />
+              </div>
+            )
+          )}
 
       <div className="grid md:grid-cols-3 gap-8">
         <div className="md:col-span-2 space-y-6">

@@ -25,7 +25,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     .from(courses).leftJoin(user, eq(courses.instructorId, user.id)).orderBy(desc(courses.createdAt)).limit(50);
   const allPayments = await db.select({ id: payments.id, amount: payments.amount, type: payments.type, status: payments.status, paymentMethod: payments.paymentMethod, createdAt: payments.createdAt, payerEmail: user.email })
     .from(payments).leftJoin(user, eq(payments.payerId, user.id)).orderBy(desc(payments.createdAt)).limit(50);
-  return { stats: { users: userCount.count, jobs: jobCount.count, courses: courseCount.count, revenue: revenue.total }, allUsers, allJobs, allCourses, allPayments };
+  return { stats: { users: userCount?.count ?? 0, jobs: jobCount?.count ?? 0, courses: courseCount?.count ?? 0, revenue: revenue?.total ?? 0 }, allUsers, allJobs, allCourses, allPayments };
 }
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -118,7 +118,7 @@ export default function Admin() {
             <tbody>
               {allPayments.map((p) => (
                 <tr key={p.id} className='bg-white'><td className='p-3 text-sm'>{p.payerEmail || '-'}</td><td className='p-3 font-medium'>{new Intl.NumberFormat('ko-KR').format(p.amount)}원</td><td className='p-3'><Badge variant='outline' className='rounded-[20px]'>{p.type}</Badge></td><td className='p-3 text-sm'>{p.paymentMethod}</td>
-                  <td className='p-3'>{statusLabels[p.status] && <Badge className={`rounded-[20px] ${statusLabels[p.status].color}`}>{statusLabels[p.status].label}</Badge>}</td>
+                  <td className='p-3'>{statusLabels[p.status] && <Badge className={`rounded-[20px] ${statusLabels[p.status]!.color}`}>{statusLabels[p.status]!.label}</Badge>}</td>
                   <td className='p-3'>{p.status === 'escrow' && <form method='post'><input type='hidden' name='paymentId' value={p.id} /><input type='hidden' name='_action' value='releaseEscrow' /><Button type='submit' size='sm' className='bg-[#DB2777] hover:bg-[#DB2777] hover:bg-#7C3AED active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 ease-in-out rounded-[20px] text-xs h-6'>해제</Button></form>}</td></tr>
               ))}
             </tbody></table>

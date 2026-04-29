@@ -32,5 +32,7 @@
     "provider": "turso",
     "name": "poomworkmvp-db",
     "url": "libsql://poomworkmvp-db-mainsoft.aws-ap-northeast-1.turso.io"
-  }
+  },
+  "createdAt": "2025-01-01T00:00:00Z",
+  "updatedAt": "2025-01-01T00:00:00Z"
 }

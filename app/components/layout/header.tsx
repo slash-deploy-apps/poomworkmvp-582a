@@ -36,7 +36,7 @@ export function Header({ user }: { user?: { id: string; name: string | null; ema
                 <Button variant='ghost' className='relative h-10 w-10 rounded-full hover:bg-[#7C3AED]/10 transition-all duration-200'>
                   <Avatar className='h-10 w-10'>
                     <AvatarFallback className='bg-gradient-to-br from-[#A78BFA] to-[#7C3AED] text-white font-bold'>
-                      {(user.name || user.email)[0].toUpperCase()}
+                      {((user?.name ?? '') || (user?.email ?? '') || '?')[0]!.toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                 </Button>
@@ -62,7 +62,7 @@ export function Header({ user }: { user?: { id: string; name: string | null; ema
                 )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <a href='/api/auth/sign-out' data-method='POST'>로그아웃</a>
+                  <form action='/logout' method='POST'><button type='submit' className='w-full text-left'>로그아웃</button></form>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -95,7 +95,7 @@ export function Header({ user }: { user?: { id: string; name: string | null; ema
                   {user ? (
                     <>
                       <Link to='/dashboard' className='block rounded-[20px] px-4 py-2 text-base font-medium text-[#635F69] hover:bg-[#7C3AED]/10'>대시보드</Link>
-                      <a href='/api/auth/sign-out' data-method='POST' className='block rounded-[20px] px-4 py-2 text-base font-medium text-[#635F69] hover:bg-[#7C3AED]/10'>로그아웃</a>
+                      <form action='/logout' method='POST' className='block'><button type='submit' className='w-full text-left rounded-[20px] px-4 py-2 text-base font-medium text-[#635F69] hover:bg-[#7C3AED]/10'>로그아웃</button></form>
                     </>
                   ) : (
                     <>
