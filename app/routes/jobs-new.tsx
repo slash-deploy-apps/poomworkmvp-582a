@@ -9,6 +9,7 @@ import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
 import { Textarea } from '~/components/ui/textarea';
 import { Label } from '~/components/ui/label';
+import { TagInput } from '~/components/ui/tag-input';
 
 export const meta: MetaFunction = () => [{ title: '일거리 등록 - poomwork' }];
 
@@ -44,6 +45,7 @@ export async function action({ request }: ActionFunctionArgs) {
       duration: formData.get('duration') as string,
       urgency: formData.get('urgency') as string,
       requirements: formData.get('requirements') as string,
+      tags: formData.get('tags') as string,
       location: formData.get('location') as string,
       isRemote: formData.get('isRemote') === 'on' ? 1 : 0,
     });
@@ -113,6 +115,14 @@ export default function JobsNew() {
             </div>
           </div>
           <div className='space-y-2'><Label>요구 역량</Label><Input name='requirements' placeholder='React, TypeScript, Node.js' className='bg-white rounded-[20px] border-0 h-12 px-4 text-[#332F3A] placeholder:text-gray-400' /></div>
+          <div className='space-y-2'>
+            <TagInput
+              name='tags'
+              label='태그'
+              placeholder='예: React, 웹개발, 프리랜서'
+              examples={['React', 'TypeScript', '디자인', '마케팅', '원격', '단기']}
+            />
+          </div>
           <div className='space-y-2'><Label>근무지</Label><Input name='location' placeholder='서울' className='bg-white rounded-[20px] border-0 h-12 px-4 text-[#332F3A] placeholder:text-gray-400' /></div>
           <label className='flex items-center gap-2'><input type='checkbox' name='isRemote' defaultChecked />원격 근무 가능</label>
           <Button type='submit' disabled={isSubmitting} className='w-full bg-[#7C3AED] hover:bg-[#5a3d95] active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 ease-in-out h-14 rounded-[20px] text-base font-medium disabled:opacity-50'>{isSubmitting ? '등록 중...' : '등록하기'}</Button>

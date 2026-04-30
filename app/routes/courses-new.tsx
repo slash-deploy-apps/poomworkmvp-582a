@@ -9,6 +9,7 @@ import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
 import { Textarea } from '~/components/ui/textarea';
 import { Label } from '~/components/ui/label';
+import { TagInput } from '~/components/ui/tag-input';
 
 export const meta: MetaFunction = () => [{ title: '강좌 생성 - poomwork' }];
 
@@ -38,6 +39,7 @@ export async function action({ request }: ActionFunctionArgs) {
       price: Number(formData.get('price')) || 0,
       level: formData.get('level') as string || 'beginner',
       duration: formData.get('duration') as string,
+      tags: formData.get('tags') as string,
       status: 'draft',
     }).returning();
     console.log('[courses-new action] insert success, id:', result[0]?.id);
@@ -96,6 +98,14 @@ export default function CoursesNew() {
           <div className='space-y-2'>
             <Label>예상 시간</Label>
             <Input name='duration' placeholder='예: 10시간' className='bg-white rounded-[20px] border-0 h-12 px-4 text-[#332F3A] placeholder:text-gray-400' />
+          </div>
+          <div className='space-y-2'>
+            <TagInput
+              name='tags'
+              label='태그'
+              placeholder='예: React, 프론트엔드, 입문'
+              examples={['React', 'Python', '디자인', '마케팅', '데이터분석', '입문']}
+            />
           </div>
           <Button type='submit' disabled={isSubmitting} className='w-full bg-[#7C3AED] hover:bg-[#5a3d95] active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 ease-in-out h-14 rounded-[20px] text-base font-medium disabled:opacity-50'>{isSubmitting ? '생성 중...' : '생성하기'}</Button>
         </form>

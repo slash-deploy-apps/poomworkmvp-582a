@@ -28,9 +28,22 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
       .where(and(eq(jobApplications.jobId, params.jobId!), eq(jobApplications.workerId, session.user.id))).limit(1);
     hasApplied = existing.length > 0;
   }
+  let applications: any[] = [];
+  if (session?.user && session.user.role === 'client' && session.user.id === job[0].clientId) {
+    applications = await db.select({
+      id: jobApplications.id,
+      coverLetter: jobApplications.coverLetter,
+      proposedBudget: jobApplications.proposedBudget,
+      proposedDuration: jobApplications.proposedDuration,
+      status: jobApplications.status,
+      createdAt: jobApplications.createdAt,
+      workerName: user.name,
+      workerImage: user.image,
+    }).from(jobApplications).leftJoin(user, eq(jobApplications.workerId, user.id)).where(eq(jobApplications.jobId, params.jobId!)).orderBy(desc(jobApplications.createdAt));
+  }
   const reviewList = await db.select({ id: reviews.id, rating: reviews.rating, comment: reviews.comment, createdAt: reviews.createdAt, reviewerName: user.name, reviewerImage: user.image, reviewerId: reviews.reviewerId })
     .from(reviews).leftJoin(user, eq(reviews.reviewerId, user.id)).where(eq(reviews.jobId, params.jobId!)).orderBy(desc(reviews.createdAt));
-  return { job: job[0], client: client[0] || null, category: category[0] || null, user: session?.user ?? null, hasApplied, reviews: reviewList };
+  return { job: job[0], client: client[0] || null, category: category[0] || null, user: session?.user ?? null, hasApplied, reviews: reviewList, applications };
 }
 
 export async function action({ request, params }: ActionFunctionArgs) {
@@ -57,6 +70,13 @@ export async function action({ request, params }: ActionFunctionArgs) {
     await db.update(jobs).set({ thumbnailUrl: null }).where(eq(jobs.id, params.jobId!));
     return redirect(`/jobs/${params.jobId}`);
   }
+  if (actionType === 'deleteJob') {
+    const jobData = await db.select().from(jobs).where(eq(jobs.id, params.jobId!)).limit(1);
+    if (!jobData[0] || jobData[0].clientId !== session.user.id) return redirect('/dashboard');
+    await db.delete(jobApplications).where(eq(jobApplications.jobId, params.jobId!));
+    await db.delete(jobs).where(eq(jobs.id, params.jobId!));
+    return redirect('/jobs');
+  }
   // Default: job application (form submission without _action)
   await db.insert(jobApplications).values({
     jobId: params.jobId!,
@@ -72,7 +92,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 export const meta: MetaFunction<typeof loader> = ({ data }) => [{ title: `${data?.job.title || '일거리'} - poomwork` }];
 
 export default function JobDetail() {
-  const { job, client, category, user: currentUser, hasApplied, reviews: reviewList } = useLoaderData<typeof loader>();
+  const { job, client, category, user: currentUser, hasApplied, reviews: reviewList, applications } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const [reviewRating, setReviewRating] = useState(0);
   const [showApplyForm, setShowApplyForm] = useState(false);
@@ -128,7 +148,22 @@ export default function JobDetail() {
               {category && <Badge variant="outline">{category.name}</Badge>}
               <Badge className={job.status === 'open' ? 'bg-[#EDE9FE] text-[#332F3A]' : 'bg-gray-200 text-[#635F69]'}>{job.status === 'open' ? '모집중' : job.status === 'in_progress' ? '진행중' : '마감'}</Badge>
             </div>
-            <h1 className='text-3xl font-bold mb-4'>{job.title}</h1>
+            <div className='flex items-start justify-between gap-4 mb-4'>
+              <h1 className='text-3xl font-bold'>{job.title}</h1>
+              {currentUser && currentUser.id === job.clientId && (
+                <div className='flex gap-2 shrink-0'>
+                  <Link to={`/jobs/${job.id}/edit`} className='px-4 py-2 bg-[#7C3AED] text-white text-sm font-medium rounded-[20px] hover:bg-[#5a3d95] active:scale-[0.92] transition-all duration-200'>
+                    수정
+                  </Link>
+                  <Form method='post' className='inline' onSubmit={(e) => { if (!confirm('정말 이 일거리를 삭제하시겠습니까?')) e.preventDefault(); }}>
+                    <input type='hidden' name='_action' value='deleteJob' />
+                    <button type='submit' className='px-4 py-2 bg-red-500 text-white text-sm font-medium rounded-[20px] hover:bg-red-600 active:scale-[0.92] transition-all duration-200'>
+                      삭제
+                    </button>
+                  </Form>
+                </div>
+              )}
+            </div>
             <div className="flex flex-wrap gap-4 text-sm text-[#635F69] mb-6">
               <span className="flex items-center gap-1"><Briefcase className="h-4 w-4" />{formatBudget()}</span>
               <span className="flex items-center gap-1"><Clock className="h-4 w-4" />{job.duration || '협의'}</span>
@@ -143,11 +178,11 @@ export default function JobDetail() {
               <div className='whitespace-pre-wrap text-[#332F3A]'>{job.description}</div>
           </div>
 
-          {job.requirements && (
+          {(job.tags || job.requirements) && (
             <div className='bg-[#EDE9FE] rounded-[32px] p-6'>
-              <h2 className='text-lg font-bold mb-4'>요구 역량</h2>
+              <h2 className='text-lg font-bold mb-4'>태그</h2>
               <div className='flex flex-wrap gap-2'>
-                {job.requirements.split(',').map((s) => (
+                {(job.tags || '').split(',').concat((job.requirements || '').split(',')).filter(Boolean).map((s) => (
                   <Badge key={s} variant='secondary'>{s.trim()}</Badge>
                 ))}
               </div>
@@ -201,7 +236,7 @@ export default function JobDetail() {
               )}
             </div>
           )}
-
+          {/* Applications list for client */}
           {/* Review form for client */}
           {currentUser && currentUser.role === 'client' && currentUser.id === job.clientId && (
             <div className='bg-[#EDE9FE] rounded-[32px] p-6'>
@@ -220,6 +255,32 @@ export default function JobDetail() {
                 </div>
                 <Button type='submit' disabled={reviewRating === 0} className='w-full bg-[#7C3AED] hover:bg-#7C3AED rounded-[20px] active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 disabled:opacity-50'>리뷰 등록</Button>
               </Form>
+            </div>
+          )}
+          {currentUser && currentUser.role === 'client' && currentUser.id === job.clientId && applications.length > 0 && (
+            <div className='bg-[#EDE9FE] rounded-[32px] p-6'>
+              <h3 className='text-base font-bold mb-4'>지원자 목록 ({applications.length})</h3>
+              <div className='space-y-4'>
+                {applications.map((app: any) => (
+                  <div key={app.id} className='bg-[#F4F1FA] rounded-[24px] p-4'>
+                    <div className='flex items-center gap-3 mb-2'>
+                      <div className='w-8 h-8 rounded-[20px] bg-[#EDE9FE] flex items-center justify-center text-[#7C3AED] text-sm font-semibold'>
+                        {(app.workerName || '?')[0]}
+                      </div>
+                      <div className='flex-1'>
+                        <div className='text-sm font-medium'>{app.workerName || '익명'}</div>
+                        <div className='text-xs text-[#635F69]'>{new Date(app.createdAt).toLocaleDateString('ko-KR')} 지원</div>
+                      </div>
+                      <Badge className={app.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : app.status === 'accepted' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>
+                        {app.status === 'pending' ? '대기중' : app.status === 'accepted' ? '수락됨' : '거절됨'}
+                      </Badge>
+                    </div>
+                    {app.proposedBudget && <p className='text-sm text-[#332F3A] mb-1'>제안 금액: {new Intl.NumberFormat('ko-KR').format(app.proposedBudget)}원</p>}
+                    {app.proposedDuration && <p className='text-sm text-[#332F3A] mb-1'>예상 기간: {app.proposedDuration}</p>}
+                    {app.coverLetter && <p className='text-sm text-[#635F69] whitespace-pre-wrap mt-2'>{app.coverLetter}</p>}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

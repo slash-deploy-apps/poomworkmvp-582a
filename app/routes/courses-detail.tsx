@@ -123,6 +123,16 @@ export default function CourseDetail() {
             <span className="flex items-center gap-1"><Clock className="h-4 w-4" />{c.duration || `${Math.round(totalDuration / 60)}분`}</span>
           </div>
           <div className="bg-[#EDE9FE] rounded-[32px] p-6"><h2 className="text-lg font-bold mb-4">강좌 소개</h2><div className="whitespace-pre-wrap">{c.description}</div></div>
+          {c.tags && (
+            <div className="bg-[#EDE9FE] rounded-[32px] p-6">
+              <h2 className="text-lg font-bold mb-4">태그</h2>
+              <div className="flex flex-wrap gap-2">
+                {c.tags.split(',').filter(Boolean).map(t => (
+                  <Badge key={t} variant="secondary">{t.trim()}</Badge>
+                ))}
+              </div>
+            </div>
+          )}
           {chapters.length > 0 && (
             <div className="bg-[#EDE9FE] rounded-[32px] p-6">
               <h2 className="text-lg font-bold mb-4">커리큘럼</h2>
