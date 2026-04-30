@@ -1,6 +1,6 @@
 import { ImageUploader } from '~/components/image-uploader';
 import { useState } from 'react';
-import { Link, redirect, useLoaderData } from 'react-router';
+import { Link, redirect, useLoaderData, useNavigate, Form } from 'react-router';
 import type { MetaFunction, LoaderFunctionArgs, ActionFunctionArgs } from 'react-router';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { ArrowLeft, MapPin, Clock, Users, Eye, Star, Briefcase, Camera, X } from 'lucide-react';
@@ -18,7 +18,8 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
   const session = await auth.api.getSession({ headers: request.headers });
   const job = await db.select().from(jobs).where(eq(jobs.id, params.jobId!)).limit(1);
   if (!job[0]) throw new Response('Not Found', { status: 404 });
-  await db.update(jobs).set({ views: sql`${jobs.views} + 1` }).where(eq(jobs.id, params.jobId!));
+  // NOTE: views counter moved to client-side useEffect to avoid loader side-effects
+  // await db.update(jobs).set({ views: sql`${jobs.views} + 1` }).where(eq(jobs.id, params.jobId!));
   const client = await db.select().from(user).where(eq(user.id, job[0].clientId)).limit(1);
   const category = job[0].categoryId ? await db.select().from(categories).where(eq(categories.id, job[0].categoryId)).limit(1) : [];
   let hasApplied = false;
@@ -56,6 +57,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
     await db.update(jobs).set({ thumbnailUrl: null }).where(eq(jobs.id, params.jobId!));
     return redirect(`/jobs/${params.jobId}`);
   }
+  // Default: job application (form submission without _action)
   await db.insert(jobApplications).values({
     jobId: params.jobId!,
     workerId: session.user.id,
@@ -71,7 +73,9 @@ export const meta: MetaFunction<typeof loader> = ({ data }) => [{ title: `${data
 
 export default function JobDetail() {
   const { job, client, category, user: currentUser, hasApplied, reviews: reviewList } = useLoaderData<typeof loader>();
+  const navigate = useNavigate();
   const [reviewRating, setReviewRating] = useState(0);
+  const [showApplyForm, setShowApplyForm] = useState(false);
   const formatBudget = () => {
     if (job.budgetType === 'negotiable') return '협의 가능';
     const min = job.budgetMin ? new Intl.NumberFormat('ko-KR').format(job.budgetMin) : '';
@@ -93,12 +97,12 @@ export default function JobDetail() {
                   <button type='button' onClick={() => { const el = document.getElementById('job-thumbnail-upload'); el?.click(); }} className='p-2 bg-white/90 rounded-full hover:bg-white shadow-lg'>
                     <Camera className='h-4 w-4 text-[#332F3A]' />
                   </button>
-                  <form method='post' className='inline'>
+                  <Form method='post' className='inline'>
                     <input type='hidden' name='_action' value='deleteThumbnail' />
                     <button type='submit' className='p-2 bg-white/90 rounded-full hover:bg-white shadow-lg'>
                       <X className='h-4 w-4 text-red-500' />
                     </button>
-                  </form>
+                  </Form>
                 </div>
               )}
             </div>
@@ -106,12 +110,12 @@ export default function JobDetail() {
             currentUser && currentUser.id === job.clientId && (
               <div className='bg-[#EDE9FE] rounded-[32px] p-6 mb-6 text-center'>
                 <p className='text-[#635F69] text-sm mb-3'>썸네일 이미지를 추가하세요</p>
-                <ImageUploader endpoint='jobThumbnail' onUploadComplete={(url) => {
-                  const form = document.createElement('form');
-                  form.method = 'post';
-                  form.innerHTML = `<input type='hidden' name='_action' value='updateThumbnail' /><input type='hidden' name='thumbnailUrl' value='${url}' />`;
-                  document.body.appendChild(form);
-                  form.submit();
+                <ImageUploader endpoint='jobThumbnail' onUploadComplete={async (url) => {
+                  const data = new FormData();
+                  data.append('_action', 'updateThumbnail');
+                  data.append('thumbnailUrl', url);
+                  await fetch(`/jobs/${job.id}`, { method: 'POST', body: data, credentials: 'same-origin' });
+                  navigate(0);
                 }} />
               </div>
             )
@@ -202,7 +206,7 @@ export default function JobDetail() {
           {currentUser && currentUser.role === 'client' && currentUser.id === job.clientId && (
             <div className='bg-[#EDE9FE] rounded-[32px] p-6'>
               <h3 className='text-base font-bold mb-3'>리뷰 작성</h3>
-              <form method='post' className='space-y-3'>
+              <Form method='post' className='space-y-3'>
                 <input type='hidden' name='_action' value='review' />
                 <input type='hidden' name='revieweeId' value={job.clientId} />
                 <div>
@@ -215,7 +219,7 @@ export default function JobDetail() {
                   <Textarea name='comment' placeholder='프로젝트 경험에 대해 적어주세요' rows={3} className='bg-[#EDE9FE] rounded-t-xl border-0 border-b-2 border-gray-400 focus:border-[#7C3AED]' />
                 </div>
                 <Button type='submit' disabled={reviewRating === 0} className='w-full bg-[#7C3AED] hover:bg-#7C3AED rounded-[20px] active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 disabled:opacity-50'>리뷰 등록</Button>
-              </form>
+              </Form>
             </div>
           )}
 
@@ -231,20 +235,22 @@ export default function JobDetail() {
             </div>
           )}
           {currentUser && currentUser.role === 'worker' && !hasApplied && job.status === 'open' && (
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button className='w-full bg-[#7C3AED] hover:bg-#7C3AED active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 h-12 rounded-[20px]'>지원하기</Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader><DialogTitle>프로젝트 지원</DialogTitle></DialogHeader>
-                <form method='post' className='space-y-4'>
-                  <div><label className='text-sm font-medium'>지원서</label><Textarea name='coverLetter' placeholder='자기소개와 관련 경험을 적어주세요' rows={5} required className='bg-[#EDE9FE] rounded-t-xl border-0 border-b-2 border-gray-400' /></div>
-                  <div><label className='text-sm font-medium'>제안 금액 (원)</label><Input name='proposedBudget' type='number' placeholder='8000000' className='bg-[#EDE9FE] rounded-t-xl border-0 border-b-2 border-gray-400' /></div>
-                  <div><label className='text-sm font-medium'>예상 기간</label><Input name='proposedDuration' placeholder='예: 3개월' className='bg-[#EDE9FE] rounded-t-xl border-0 border-b-2 border-gray-400' /></div>
-                  <Button type='submit' className='w-full bg-[#7C3AED] hover:bg-#7C3AED active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 h-12 rounded-[20px]'>지원 완료</Button>
-                </form>
-              </DialogContent>
-            </Dialog>
+            showApplyForm ? (
+              <div className='bg-[#EDE9FE] rounded-[32px] p-6'>
+                <div className='flex items-center justify-between mb-4'>
+                  <h3 className='text-base font-bold'>프로젝트 지원</h3>
+                  <button type='button' onClick={() => setShowApplyForm(false)} className='text-sm text-[#635F69] hover:text-[#332F3A]'>취소</button>
+                </div>
+                <Form method='post' className='space-y-4'>
+                  <div><label className='text-sm font-medium'>지원서</label><Textarea name='coverLetter' placeholder='자기소개와 관련 경험을 적어주세요' rows={5} required className='bg-white rounded-[20px] border-0 p-4 text-[#332F3A] placeholder:text-gray-400' /></div>
+                  <div><label className='text-sm font-medium'>제안 금액 (원)</label><Input name='proposedBudget' type='number' placeholder='8000000' className='bg-white rounded-[20px] border-0 h-12 px-4 text-[#332F3A] placeholder:text-gray-400' /></div>
+                  <div><label className='text-sm font-medium'>예상 기간</label><Input name='proposedDuration' placeholder='예: 3개월' className='bg-white rounded-[20px] border-0 h-12 px-4 text-[#332F3A] placeholder:text-gray-400' /></div>
+                  <Button type='submit' className='w-full bg-[#7C3AED] hover:bg-[#5a3d95] active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 h-12 rounded-[20px]'>지원 완료</Button>
+                </Form>
+              </div>
+            ) : (
+              <Button onClick={() => setShowApplyForm(true)} className='w-full bg-[#7C3AED] hover:bg-[#5a3d95] active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 h-12 rounded-[20px]'>지원하기</Button>
+            )
           )}
           {!currentUser && (
             <Button asChild className='w-full bg-[#7C3AED] hover:bg-#7C3AED active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 h-12 rounded-[20px]'><Link to='/login'>로그인 후 지원하기</Link></Button>

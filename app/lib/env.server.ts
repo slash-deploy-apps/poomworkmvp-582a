@@ -11,7 +11,7 @@ export function loadDotenv(cwd: string = process.cwd()): void {
   if (loaded) return;
   loaded = true;
 
-  for (const file of ['.env.vault', '.env.local']) {
+  for (const file of ['.env.production', '.env.vault', '.env.local']) {
     const path = resolve(cwd, file);
     if (!existsSync(path)) continue;
 
