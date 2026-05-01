@@ -9,6 +9,7 @@ import { Sheet, SheetContent, SheetTrigger } from '~/components/ui/sheet';
 import { db } from '~/lib/db.server';
 import { courses, courseChapters, courseLessons, enrollments, lessonProgress } from '~/db/schema';
 import { auth } from '~/lib/auth.server';
+import { getYouTubeEmbedUrl } from '~/lib/youtube';
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
   const session = await auth.api.getSession({ headers: request.headers });
@@ -87,7 +88,18 @@ export default function CourseLearn() {
       <div className="flex-1 flex flex-col">
         <div className="flex-1 bg-black flex items-center justify-center">
           {currentLesson?.videoUrl ? (
-            <video key={currentLesson.id} controls className="w-full h-full" autoPlay><source src={currentLesson.videoUrl} type="video/mp4" /></video>
+            getYouTubeEmbedUrl(currentLesson.videoUrl) ? (
+              <iframe
+                key={currentLesson.id}
+                src={getYouTubeEmbedUrl(currentLesson.videoUrl)!}
+                title={currentLesson.title}
+                className="w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            ) : (
+              <video key={currentLesson.id} controls className="w-full h-full" autoPlay><source src={currentLesson.videoUrl} type="video/mp4" /></video>
+            )
           ) : (
             <div className="text-center text-gray-400">
               <Play className="h-16 w-16 mx-auto mb-4 opacity-30" />

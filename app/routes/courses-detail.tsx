@@ -5,6 +5,7 @@ import type { MetaFunction, LoaderFunctionArgs, ActionFunctionArgs } from 'react
 import { eq, sql } from 'drizzle-orm';
 import { Star, Users, Clock, Play, Lock, Camera, X } from 'lucide-react';
 import { Button } from '~/components/ui/button';
+import { Input } from '~/components/ui/input';
 import { Badge } from '~/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '~/components/ui/accordion';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '~/components/ui/dialog';
@@ -30,6 +31,68 @@ export async function action({ request, params }: ActionFunctionArgs) {
   if (!course[0]) throw new Response('Not Found', { status: 404 });
   const formData = await request.formData();
   const actionType = formData.get('_action') as string;
+
+  // Instructor-only actions
+  const instructorActions = ['addChapter','updateChapter','deleteChapter','addLesson','updateLesson','deleteLesson','updateThumbnail','deleteThumbnail','updateCourse'];
+  if (instructorActions.includes(actionType)) {
+    if (course[0].instructorId !== session.user.id) return redirect(`/courses/${params.courseId}`);
+  }
+
+  if (actionType === 'addChapter') {
+    const title = formData.get('title') as string;
+    if (!title) return redirect(`/courses/${params.courseId}`);
+    const lastChapter = await db.select({ sortOrder: courseChapters.sortOrder }).from(courseChapters).where(eq(courseChapters.courseId, params.courseId!)).orderBy(sql`${courseChapters.sortOrder} DESC`).limit(1);
+    const sortOrder = lastChapter[0] ? lastChapter[0].sortOrder + 1 : 1;
+    await db.insert(courseChapters).values({ title, courseId: params.courseId!, sortOrder });
+    return redirect(`/courses/${params.courseId}`);
+  }
+
+  if (actionType === 'updateChapter') {
+    const chapterId = formData.get('chapterId') as string;
+    const title = formData.get('title') as string;
+    if (!chapterId || !title) return redirect(`/courses/${params.courseId}`);
+    await db.update(courseChapters).set({ title }).where(eq(courseChapters.id, chapterId));
+    return redirect(`/courses/${params.courseId}`);
+  }
+
+  if (actionType === 'deleteChapter') {
+    const chapterId = formData.get('chapterId') as string;
+    if (!chapterId) return redirect(`/courses/${params.courseId}`);
+    await db.delete(courseLessons).where(eq(courseLessons.chapterId, chapterId));
+    await db.delete(courseChapters).where(eq(courseChapters.id, chapterId));
+    return redirect(`/courses/${params.courseId}`);
+  }
+
+  if (actionType === 'addLesson') {
+    const chapterId = formData.get('chapterId') as string;
+    const title = formData.get('title') as string;
+    const videoUrl = formData.get('videoUrl') as string;
+    const durationMin = Number(formData.get('durationMin')) || 0;
+    const isFree = formData.get('isFree') === 'on' ? 1 : 0;
+    if (!chapterId || !title) return redirect(`/courses/${params.courseId}`);
+    const lastLesson = await db.select({ sortOrder: courseLessons.sortOrder }).from(courseLessons).where(eq(courseLessons.chapterId, chapterId)).orderBy(sql`${courseLessons.sortOrder} DESC`).limit(1);
+    const sortOrder = lastLesson[0] ? lastLesson[0].sortOrder + 1 : 1;
+    await db.insert(courseLessons).values({ chapterId, courseId: params.courseId!, title, videoUrl: videoUrl || null, duration: durationMin * 60, sortOrder, isFree });
+    return redirect(`/courses/${params.courseId}`);
+  }
+
+  if (actionType === 'updateLesson') {
+    const lessonId = formData.get('lessonId') as string;
+    const title = formData.get('title') as string;
+    const videoUrl = formData.get('videoUrl') as string;
+    const durationMin = Number(formData.get('durationMin')) || 0;
+    const isFree = formData.get('isFree') === 'on' ? 1 : 0;
+    if (!lessonId || !title) return redirect(`/courses/${params.courseId}`);
+    await db.update(courseLessons).set({ title, videoUrl: videoUrl || null, duration: durationMin * 60, isFree }).where(eq(courseLessons.id, lessonId));
+    return redirect(`/courses/${params.courseId}`);
+  }
+
+  if (actionType === 'deleteLesson') {
+    const lessonId = formData.get('lessonId') as string;
+    if (!lessonId) return redirect(`/courses/${params.courseId}`);
+    await db.delete(courseLessons).where(eq(courseLessons.id, lessonId));
+    return redirect(`/courses/${params.courseId}`);
+  }
 
   if (actionType === 'updateThumbnail') {
     const thumbnailUrl = formData.get('thumbnailUrl') as string || null;
@@ -156,6 +219,42 @@ export default function CourseDetail() {
               </Accordion>
             </div>
           )}
+          {isOwner && (
+            <div className="bg-[#EDE9FE] rounded-[32px] p-6 space-y-6">
+              <h2 className="text-lg font-bold">커리큘럼 관리</h2>
+              <form method="post" className="flex gap-2">
+                <input type="hidden" name="_action" value="addChapter" />
+                <Input name="title" placeholder="새 챕터 제목" className="flex-1 rounded-[20px] bg-white border-0" required />
+                <Button type="submit" className="bg-[#7C3AED] hover:bg-[#5a3d95] rounded-[20px]">챕터 추가</Button>
+              </form>
+              {chapters.map((ch) => {
+                const chapterLessons = lessons.filter(l => l.chapterId === ch.id);
+                return (
+                  <div key={ch.id} className="bg-white rounded-[24px] p-4 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <form method="post" className="flex-1 flex gap-2">
+                        <input type="hidden" name="_action" value="updateChapter" />
+                        <input type="hidden" name="chapterId" value={ch.id} />
+                        <Input name="title" defaultValue={ch.title} className="flex-1 rounded-[20px] border-0" required />
+                        <Button type="submit" size="sm" className="bg-[#7C3AED] hover:bg-[#5a3d95] rounded-[16px]">저장</Button>
+                      </form>
+                      <form method="post" onSubmit={(e) => { if (!confirm('챕터를 삭제하면 해당 레슨도 모두 삭제됩니다. 계속하시겠습니까?')) e.preventDefault(); }}>
+                        <input type="hidden" name="_action" value="deleteChapter" />
+                        <input type="hidden" name="chapterId" value={ch.id} />
+                        <Button type="submit" size="sm" variant="destructive" className="rounded-[16px]">삭제</Button>
+                      </form>
+                    </div>
+                    <div className="pl-4 space-y-2">
+                      {chapterLessons.map((l) => (
+                        <LessonItem key={l.id} lesson={l} />
+                      ))}
+                      <LessonForm chapterId={ch.id} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
         <div className="space-y-6">
           <div className="bg-white/60 backdrop-blur-xl rounded-[32px] p-6 shadow-clayCard sticky top-8">
@@ -222,5 +321,63 @@ export default function CourseDetail() {
         </div>
       </div>
     </div>
+  );
+}
+
+
+function LessonItem({ lesson }: { lesson: { id: string; title: string; videoUrl: string | null; duration: number; isFree: boolean } }) {
+  const [editOpen, setEditOpen] = useState(false);
+  return (
+    <div className='flex items-center gap-2 bg-[#EDE9FE] rounded-[16px] p-3'>
+      <div className='flex-1'>
+        <p className='text-sm font-medium'>{lesson.title}</p>
+        <p className='text-xs text-[#635F69]'>{Math.round(lesson.duration / 60)}분{lesson.videoUrl ? ' • 영상 있음' : ''}</p>
+      </div>
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogTrigger asChild>
+          <Button size='sm' variant='ghost' className='rounded-[12px]' onClick={() => setEditOpen(true)}>편집</Button>
+        </DialogTrigger>
+        <DialogContent className='rounded-[24px]'>
+          <DialogHeader><DialogTitle>레슨 편집</DialogTitle></DialogHeader>
+          <form method='post' className='space-y-4 pt-4'>
+            <input type='hidden' name='_action' value='updateLesson' />
+            <input type='hidden' name='lessonId' value={lesson.id} />
+            <div><label className='text-sm font-medium'>레슨 제목</label><Input name='title' defaultValue={lesson.title} className='mt-1 rounded-[16px]' required /></div>
+            <div><label className='text-sm font-medium'>유튜브 링크</label><Input name='videoUrl' defaultValue={lesson.videoUrl || ''} placeholder='https://youtube.com/...' className='mt-1 rounded-[16px]' /></div>
+            <div><label className='text-sm font-medium'>예상 시간 (분)</label><Input name='durationMin' type='number' defaultValue={Math.round(lesson.duration / 60)} min='1' className='mt-1 rounded-[16px]' required /></div>
+            <div className='flex items-center gap-2'><Input type='checkbox' name='isFree' defaultChecked={lesson.isFree} className='w-4 h-4' /><label className='text-sm'>맛보기 레슨</label></div>
+            <Button type='submit' className='w-full bg-[#7C3AED] hover:bg-[#5a3d95] rounded-[16px]' onClick={() => setEditOpen(false)}>저장</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+      <form method='post' onSubmit={(e) => { if (!confirm('이 레슨을 삭제하시겠습니까?')) e.preventDefault(); }}>
+        <input type='hidden' name='_action' value='deleteLesson' />
+        <input type='hidden' name='lessonId' value={lesson.id} />
+        <Button type='submit' size='sm' variant='ghost' className='text-red-500 rounded-[12px]'>삭제</Button>
+      </form>
+    </div>
+  );
+}
+
+function LessonForm({ chapterId }: { chapterId: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size='sm' variant='ghost' className='rounded-[12px]' onClick={() => setOpen(true)}>+ 레슨 추가</Button>
+      </DialogTrigger>
+      <DialogContent className='rounded-[24px]'>
+        <DialogHeader><DialogTitle>새 레슨 추가</DialogTitle></DialogHeader>
+        <form method='post' className='space-y-4 pt-4'>
+          <input type='hidden' name='_action' value='addLesson' />
+          <input type='hidden' name='chapterId' value={chapterId} />
+          <div><label className='text-sm font-medium'>레슨 제목</label><Input name='title' placeholder='레슨 제목' className='mt-1 rounded-[16px]' required /></div>
+          <div><label className='text-sm font-medium'>유튜브 링크</label><Input name='videoUrl' placeholder='https://youtube.com/...' className='mt-1 rounded-[16px]' /></div>
+          <div><label className='text-sm font-medium'>예상 시간 (분)</label><Input name='durationMin' type='number' min='1' defaultValue='10' className='mt-1 rounded-[16px]' required /></div>
+          <div className='flex items-center gap-2'><Input type='checkbox' name='isFree' className='w-4 h-4' /><label className='text-sm'>맛보기 레슨</label></div>
+          <Button type='submit' className='w-full bg-[#7C3AED] hover:bg-[#5a3d95] rounded-[16px]' onClick={() => setOpen(false)}>추가</Button>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
