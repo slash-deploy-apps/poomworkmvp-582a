@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "tosspayments-docs": {
+      "source": "mainsoft-2024/toss-payments-docs-fetcher-skill",
+      "sourceType": "github",
+      "skillPath": "skills/tosspayments-docs-fetcher/SKILL.md",
+      "computedHash": "79f71f9a05b62a03ded58e5edebf991f3d041789843b0905b60de19779420376"
+    }
+  }
+}

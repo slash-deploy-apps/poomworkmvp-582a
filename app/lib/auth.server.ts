@@ -16,6 +16,7 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
+    minPasswordLength: 4,
   },
   user: {
     additionalFields: {

@@ -26,6 +26,7 @@ export default [
   route('courses', 'routes/courses.tsx'),
   route('courses/new', 'routes/courses-new.tsx'),
   route('courses/:courseId', 'routes/courses-detail.tsx'),
+  route('courses/:courseId/edit', 'routes/courses-edit.tsx'),
   route('courses/:courseId/learn', 'routes/courses-learn.tsx'),
   route('my/courses', 'routes/my-courses.tsx'),
 
@@ -40,4 +41,11 @@ export default [
 
   // Admin
   route('admin', 'routes/admin.tsx'),
+
+  // Payments
+  route('payment/success', 'routes/payment.success.tsx'),
+  route('payment/fail', 'routes/payment.fail.tsx'),
+  route('api/payment/prepare', 'routes/api.payment.prepare.ts'),
+  route('api/payment/confirm', 'routes/api.payment.confirm.ts'),
+  route('api/payment/refund', 'routes/api.payment.refund.ts'),
 ] satisfies RouteConfig;

@@ -2,6 +2,11 @@ import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import * as schema from '../app/db/schema';
 import { eq } from 'drizzle-orm';
+import { betterAuth } from 'better-auth';
+import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+import * as schema from '../app/db/schema';
+import { eq } from 'drizzle-orm';
 
 const sqlite = new Database('sqlite.db');
 sqlite.pragma("journal_mode = 'WAL'");
@@ -28,21 +33,39 @@ async function seed() {
   }
   console.log('✅ Categories seeded');
 
-  // Admin user
-  const [adminUser] = await db.insert(schema.user).values({
-    name: '관리자',
-    email: 'admin@poomwork.com',
-    role: 'admin',
-    bio: 'poomwork 플랫폼 관리자입니다.',
-    rating: 5,
-  }).returning();
+  // Admin user via better-auth
+  const auth = betterAuth({
+    database: drizzleAdapter(db, { provider: 'sqlite' }),
+    emailAndPassword: { enabled: true, minPasswordLength: 4 },
+    baseURL: 'http://localhost:4321',
+  });
 
+  try {
+    await auth.api.signUpEmail({
+      body: {
+        email: 'admin@poomwork.com',
+        password: '1234',
+        name: '관리자',
+      },
+    });
+    await db.update(schema.user).set({ role: 'admin', bio: 'poomwork 플랫폼 관리자입니다.', rating: 5 }).where(eq(schema.user.email, 'admin@poomwork.com'));
+    console.log('✅ Admin user created (admin@poomwork.com / 1234)');
+  } catch (err: any) {
+    if (err.message?.includes('already exists') || err.statusCode === 422) {
+      console.log('ℹ️ Admin user already exists, skipping');
+    } else {
+      console.error('❌ Admin creation failed:', err);
+      throw err;
+    }
+  }
   // Client users
+
+
   const clients = await db.insert(schema.user).values([
     { name: '김대표', email: 'client1@test.com', role: 'client', bio: '스타트업 CEO입니다. 다양한 IT 프로젝트를 진행하고 있습니다.', location: '서울', rating: 4.5, reviewCount: 12 },
     { name: '이매니저', email: 'client2@test.com', role: 'client', bio: '중소기업 마케팅 팀장입니다.', location: '부산', rating: 4.2, reviewCount: 8 },
     { name: '박이사', email: 'client3@test.com', role: 'client', bio: 'IT 기업 개발 이사입니다.', location: '서울', rating: 4.8, reviewCount: 15 },
-  ]).returning();
+  ]).onConflictDoNothing({ target: schema.user.email }).returning();
   console.log('✅ Client users seeded');
 
   // Worker users
@@ -53,7 +76,7 @@ async function seed() {
     { name: '윤영상', email: 'worker4@test.com', role: 'worker', bio: '영상 제작 및 편집 전문가입니다.', skills: 'Premiere Pro,After Effects,유튜브,모션그래픽', location: '인천', rating: 4.6, reviewCount: 10 },
     { name: '강번역', email: 'worker5@test.com', role: 'worker', bio: '영한/한영 번역 전문가입니다.', skills: '영어,일본어,번역,통역', location: '서울', rating: 4.8, reviewCount: 20 },
     { name: '송데이터', email: 'worker6@test.com', role: 'worker', bio: '데이터 분석가 및 AI 엔지니어입니다.', skills: 'Python,TensorFlow,SQL,데이터분석,머신러닝', location: '수원', rating: 4.4, reviewCount: 7 },
-  ]).returning();
+  ]).onConflictDoNothing({ target: schema.user.email }).returning();
   console.log('✅ Worker users seeded');
 
   // Sample jobs

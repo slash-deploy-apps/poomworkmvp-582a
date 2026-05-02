@@ -412,6 +412,12 @@ export const payments = sqliteTable(
     referenceId: d.text({ length: 255 }),
     paymentMethod: d.text({ length: 30 }).default('card').notNull(),
     escrowReleasedAt: d.integer({ mode: 'timestamp' }),
+    orderId: d.text({ length: 255 }).unique(),
+    paymentKey: d.text({ length: 255 }),
+    tossPaymentMethod: d.text({ length: 50 }),
+    approvedAt: d.integer({ mode: 'timestamp' }),
+    cancelledAt: d.integer({ mode: 'timestamp' }),
+    cancelReason: d.text({ length: 500 }),
     createdAt: d
       .integer({ mode: 'timestamp' })
       .default(sql`(unixepoch())`)
@@ -422,6 +428,7 @@ export const payments = sqliteTable(
     index('payments_payer_id_idx').on(t.payerId),
     index('payments_payee_id_idx').on(t.payeeId),
     index('payments_status_idx').on(t.status),
+    index('payments_order_id_idx').on(t.orderId),
   ],
 );
 

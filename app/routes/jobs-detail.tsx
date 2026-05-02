@@ -17,7 +17,7 @@ import { auth } from '~/lib/auth.server';
 export async function loader({ request, params }: LoaderFunctionArgs) {
   const session = await auth.api.getSession({ headers: request.headers });
   const job = await db.select().from(jobs).where(eq(jobs.id, params.jobId!)).limit(1);
-  if (!job[0]) throw new Response('Not Found', { status: 404 });
+  if (!job[0] || job[0].status === 'deleted') throw new Response('Not Found', { status: 404 });
   // NOTE: views counter moved to client-side useEffect to avoid loader side-effects
   // await db.update(jobs).set({ views: sql`${jobs.views} + 1` }).where(eq(jobs.id, params.jobId!));
   const client = await db.select().from(user).where(eq(user.id, job[0].clientId)).limit(1);

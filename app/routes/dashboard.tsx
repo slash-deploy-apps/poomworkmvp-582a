@@ -1,7 +1,7 @@
 import { Link, redirect, useLoaderData } from 'react-router';
 import type { MetaFunction, LoaderFunctionArgs, ActionFunctionArgs } from 'react-router';
 import { eq, desc, sql } from 'drizzle-orm';
-import { Briefcase, Users, BookOpen, CreditCard, GraduationCap, Plus } from 'lucide-react';
+import { Briefcase, Users, BookOpen, CreditCard, GraduationCap, Plus, Receipt } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
 import { Badge } from '~/components/ui/badge';
 import { Button } from '~/components/ui/button';
@@ -38,9 +38,29 @@ export async function loader({ request }: LoaderFunctionArgs) {
       .leftJoin(jobs, eq(jobApplications.jobId, jobs.id))
       .leftJoin(user, eq(jobApplications.workerId, user.id))
       .where(eq(jobs.clientId, u.id)).orderBy(desc(jobApplications.createdAt)).limit(50);
-    data.clientPayments = await db.select().from(payments).where(eq(payments.payerId, u.id)).orderBy(desc(payments.createdAt)).limit(20);
   }
+  if (u.role === 'client') {
+    const userPayments = await db.select({
+      id: payments.id,
+      amount: payments.amount,
+      type: payments.type,
+      status: payments.status,
+      paymentMethod: payments.tossPaymentMethod,
+      createdAt: payments.createdAt,
+      courseId: payments.referenceId,
+    })
+    .from(payments)
+    .where(eq(payments.payerId, u.id))
+    .orderBy(desc(payments.createdAt));
 
+    const courseIds = userPayments.filter(p => p.type === 'course_purchase').map(p => p.courseId).filter(Boolean);
+    const relevantCourses = courseIds.length > 0 ? await db.select({ id: courses.id, title: courses.title }).from(courses).where(sql`${courses.id} IN (${sql.join(courseIds.map(id => sql`${id}`), sql`, `)})`) : [];
+    const courseMap = Object.fromEntries(relevantCourses.map(c => [c.id, c.title]));
+    data.userPayments = userPayments.map(p => ({
+      ...p,
+      courseTitle: p.type === 'course_purchase' ? courseMap[p.courseId as string] : null,
+    }));
+  }
   if (u.role === 'admin') {
     const [userCount] = await db.select({ count: sql<number>`count(*)` }).from(user);
     const [jobCount] = await db.select({ count: sql<number>`count(*)` }).from(jobs);
@@ -76,6 +96,12 @@ export async function action({ request }: ActionFunctionArgs) {
   } else if (actionType === 'rejectApplication') {
     const appId = formData.get('applicationId') as string;
     await db.update(jobApplications).set({ status: 'rejected' }).where(eq(jobApplications.id, appId));
+  } else if (actionType === 'softDeleteJob') {
+    const jobId = formData.get('jobId') as string;
+    await db.update(jobs).set({ status: 'deleted' }).where(eq(jobs.id, jobId));
+  } else if (actionType === 'softDeleteCourse') {
+    const courseId = formData.get('courseId') as string;
+    await db.update(courses).set({ status: 'deleted' }).where(eq(courses.id, courseId));
   }
   return redirect('/dashboard');
 }
@@ -195,6 +221,12 @@ export default function Dashboard() {
                     <div className='flex items-center justify-between mb-3'>
                       <Link to={`/jobs/${j.id}`} className='font-bold text-[#332F3A] hover:text-[#7C3AED] transition-colors'>{j.title}</Link>
                       <Badge className={j.status === 'open' ? 'bg-[#EDE9FE] text-[#332F3A]' : 'bg-gray-200 text-[#635F69]'}>{j.status === 'open' ? '모집중' : j.status === 'in_progress' ? '진행중' : '마감'}</Badge>
+                      <Link to={`/jobs/${j.id}/edit`} className='px-3 py-1 rounded-[20px] bg-white text-sm font-medium hover:bg-[#DDD6FE] active:scale-[0.92] transition-all duration-200'>수정</Link>
+                      <form method='post' onSubmit={(e) => { if (!confirm('삭제하시겠습니까?')) e.preventDefault(); }}>
+                        <input type='hidden' name='_action' value='softDeleteJob' />
+                        <input type='hidden' name='jobId' value={j.id} />
+                        <button type='submit' className='px-3 py-1 rounded-[20px] bg-red-50 text-red-600 text-sm font-medium hover:bg-red-100 active:scale-[0.92] transition-all duration-200'>삭제</button>
+                      </form>
                     </div>
                     {j.budgetMin != null && <div className='text-sm text-[#635F69] mb-3'>예산: {new Intl.NumberFormat('ko-KR').format(j.budgetMin)}{j.budgetMax ? `~${new Intl.NumberFormat('ko-KR').format(j.budgetMax)}` : ''}원</div>}
                     {jobApps.length === 0 ? (
@@ -241,23 +273,36 @@ export default function Dashboard() {
               })}
             </div>
           )}
-          {(data.clientPayments as any[])?.length > 0 && (
+          {(data.userPayments as any[])?.length > 0 ? (
             <Card>
-              <CardHeader><CardTitle className='flex items-center gap-2'><CreditCard className='h-5 w-5' />결제 내역</CardTitle></CardHeader>
+              <CardHeader><CardTitle className='flex items-center gap-2'><Receipt className='h-5 w-5' />결제 내역</CardTitle></CardHeader>
               <CardContent>
                 <div className='space-y-3'>
-                  {(data.clientPayments as any[])?.map((p: any) => (
+                  {(data.userPayments as any[])?.map((p: any) => (
                     <div key={p.id} className='flex items-center justify-between p-4 bg-[#EDE9FE] rounded-[32px]'>
                       <div>
-                        <div className='font-medium'>{new Intl.NumberFormat('ko-KR').format(p.amount)}원</div>
-                        <div className='text-sm text-[#635F69]'>{p.type === 'job_payment' ? '일거리 결제' : p.type === 'course_purchase' ? '강좌 구매' : p.type} · {new Date(p.createdAt).toLocaleDateString('ko-KR')}</div>
+                        {p.courseTitle && <Link to={`/courses/${p.courseId}`} className='font-medium hover:text-[#7C3AED] transition-colors'>{p.courseTitle}</Link>}
+                        {!p.courseTitle && <div className='font-medium'>{p.type === 'job_payment' ? '일거리 결제' : p.type === 'course_purchase' ? '강좌 구매' : p.type}</div>}
+                        <div className='text-sm text-[#635F69]'>{new Intl.NumberFormat('ko-KR').format(p.amount)}원 · {p.paymentMethod || 'N/A'} · {new Date(p.createdAt).toLocaleDateString('ko-KR')}</div>
                       </div>
-                      <Badge className={p.status === 'completed' ? 'bg-[#EDE9FE] text-[#332F3A]' : p.status === 'escrow' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-[#635F69]'}>
-                        {p.status === 'completed' ? '결제 완료' : p.status === 'escrow' ? '에스크로' : p.status}
-                      </Badge>
+                      <div className='flex items-center gap-2'>
+                        <Badge className={p.status === 'DONE' ? 'bg-green-100 text-green-700' : p.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' : p.status === 'FAILED' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}>
+                          {p.status === 'DONE' ? '결제 완료' : p.status === 'PENDING' ? '대기중' : p.status === 'FAILED' ? '실패' : p.status === 'CANCELLED' ? '취소됨' : p.status}
+                        </Badge>
+                        {p.status === 'DONE' && (
+                          <Button size='sm' variant='outline' className='rounded-[20px] text-xs h-7 border-[#DB2777] text-[#DB2777] hover:bg-red-50 active:scale-[0.92] transition-all duration-200' onClick={() => window.alert('환불은 관리자 승인 후 처리됩니다')}>환불 요청</Button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader><CardTitle className='flex items-center gap-2'><Receipt className='h-5 w-5' />결제 내역</CardTitle></CardHeader>
+              <CardContent>
+                <div className='p-4 bg-[#EDE9FE] rounded-[32px] text-center text-[#635F69]'>결제 내역이 없습니다</div>
               </CardContent>
             </Card>
           )}

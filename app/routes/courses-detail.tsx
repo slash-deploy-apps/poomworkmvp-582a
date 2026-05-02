@@ -1,4 +1,5 @@
 import { ImageUploader } from '~/components/image-uploader';
+import { PaymentWidget } from '~/components/payment-widget';
 import { useState } from 'react';
 import { Link, redirect, useLoaderData } from 'react-router';
 import type { MetaFunction, LoaderFunctionArgs, ActionFunctionArgs } from 'react-router';
@@ -10,18 +11,18 @@ import { Badge } from '~/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '~/components/ui/accordion';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '~/components/ui/dialog';
 import { db } from '~/lib/db.server';
-import { courses, courseChapters, courseLessons, enrollments, payments, user } from '~/db/schema';
+import { courses, courseChapters, courseLessons, enrollments, user } from '~/db/schema';
 import { auth } from '~/lib/auth.server';
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
   const session = await auth.api.getSession({ headers: request.headers });
   const course = await db.select().from(courses).where(eq(courses.id, params.courseId!)).limit(1);
-  if (!course[0]) throw new Response('Not Found', { status: 404 });
+  if (!course[0] || course[0].status === 'deleted') throw new Response('Not Found', { status: 404 });
   const instructor = await db.select().from(user).where(eq(user.id, course[0].instructorId)).limit(1);
   const chapters = await db.select().from(courseChapters).where(eq(courseChapters.courseId, params.courseId!)).orderBy(courseChapters.sortOrder);
   const lessons = await db.select().from(courseLessons).where(eq(courseLessons.courseId, params.courseId!)).orderBy(courseLessons.sortOrder);
   const enrollment = session?.user ? await db.select().from(enrollments).where(sql`${enrollments.userId} = ${session.user.id} AND ${enrollments.courseId} = ${params.courseId!}`).limit(1) : [];
-  return { course: course[0], instructor: instructor[0] || null, chapters, lessons, enrollment: enrollment[0] || null, user: session?.user ?? null };
+  return { course: course[0], instructor: instructor[0] || null, chapters, lessons, enrollment: enrollment[0] || null, user: session?.user ?? null, tossClientKey: process.env.TOSS_CLIENT_KEY ?? null };
 }
 
 export async function action({ request, params }: ActionFunctionArgs) {
@@ -117,19 +118,68 @@ export async function action({ request, params }: ActionFunctionArgs) {
     return redirect(`/courses/${params.courseId}`);
   }
 
-  if (course[0].price > 0) {
-    await db.insert(payments).values({ payerId: session.user.id, amount: course[0].price, type: 'course_purchase', status: 'escrow', referenceId: params.courseId, paymentMethod: 'card' });
+  // Free courses only - paid courses go through TossPayments widget flow
+  if (course[0].price === 0) {
+    await db.insert(enrollments).values({ userId: session.user.id, courseId: params.courseId! });
+    await db.update(courses).set({ enrollmentCount: sql`${courses.enrollmentCount} + 1` }).where(eq(courses.id, params.courseId!));
+    return redirect(`/courses/${params.courseId}/learn`);
   }
-  await db.insert(enrollments).values({ userId: session.user.id, courseId: params.courseId! });
-  await db.update(courses).set({ enrollmentCount: sql`${courses.enrollmentCount} + 1` }).where(eq(courses.id, params.courseId!));
-  return redirect(`/courses/${params.courseId}/learn`);
+  return redirect(`/courses/${params.courseId}`);
 }
 
 export const meta: MetaFunction<typeof loader> = ({ data }) => [{ title: `${data?.course.title || '강좌'} - poomwork` }];
 
+function FreeEnrollmentButton({ courseId, courseTitle, price, customerKey }: { courseId: string; courseTitle: string; price: number; customerKey: string }) {
+  const [widgetOpen, setWidgetOpen] = useState(false);
+  const [prepareLoading, setPrepareLoading] = useState(false);
+  const [orderId, setOrderId] = useState<string | null>(null);
+  const tossClientKey = typeof window !== 'undefined' ? (window as unknown as { ENV_TOSS_CLIENT_KEY?: string }).ENV_TOSS_CLIENT_KEY : null;
+
+  const handleEnroll = async () => {
+    setPrepareLoading(true);
+    try {
+      const newOrderId = crypto.randomUUID();
+      const res = await fetch('/api/payment/prepare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ courseId, orderId: newOrderId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setOrderId(newOrderId);
+        setWidgetOpen(true);
+      }
+    } catch (err) {
+      console.error('Failed to prepare payment:', err);
+    } finally {
+      setPrepareLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <Button
+        onClick={handleEnroll}
+        disabled={prepareLoading}
+        className="w-full bg-[#7C3AED] hover:bg-[#5a3d95] active:scale-[0.92] transition-all h-14 rounded-[20px] text-base font-medium"
+      >
+        {prepareLoading ? '처리 중...' : '수강 신청하기'}
+      </Button>
+      <PaymentWidget
+        courseId={courseId}
+        courseTitle={courseTitle}
+        price={price}
+        customerKey={customerKey}
+        orderId={orderId || ''}
+        onClose={() => setWidgetOpen(false)}
+        isOpen={widgetOpen}
+      />
+    </>
+  );
+}
+
 export default function CourseDetail() {
   const { course: c, instructor, chapters, lessons, enrollment, user: currentUser } = useLoaderData<typeof loader>();
-  const [payOpen, setPayOpen] = useState(false);
   const levelLabels: Record<string, string> = { beginner: '초급', intermediate: '중급', advanced: '고급' };
   const totalDuration = lessons.reduce((sum, l) => sum + l.duration, 0);
   const isOwner = currentUser && currentUser.id === c.instructorId;
@@ -274,30 +324,22 @@ export default function CourseDetail() {
                   계속 학습하기
                 </Button>
               </Link>
-            ) : (
-              <Dialog open={payOpen} onOpenChange={setPayOpen}>
-                <DialogTrigger asChild>
-                  <Button className="w-full bg-[#7C3AED] hover:bg-[#5a3d95] active:scale-[0.92] transition-all h-14 rounded-[20px] text-base font-medium">
-                    {c.price === 0 ? '무료로 시작하기' : '수강 신청하기'}
+            ) : currentUser ? (
+              c.price === 0 ? (
+                <form method="post">
+                  <Button type="submit" className="w-full bg-[#7C3AED] hover:bg-[#5a3d95] active:scale-[0.92] transition-all h-14 rounded-[20px] text-base font-medium">
+                    무료로 시작하기
                   </Button>
-                </DialogTrigger>
-                <DialogContent className="rounded-[32px]">
-                  <DialogHeader>
-                    <DialogTitle className="text-center">{c.price === 0 ? '무료 수강 신청' : '수강 결제'}</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4 pt-4">
-                    <div className="text-center p-4 bg-[#EDE9FE] rounded-[24px]">
-                      <p className="text-lg font-semibold">{c.title}</p>
-                      {c.price > 0 && <p className="text-2xl font-bold text-[#7C3AED] mt-2">{new Intl.NumberFormat('ko-KR').format(c.price)}원</p>}
-                    </div>
-                    <form method="post">
-                      <Button type="submit" className="w-full bg-[#7C3AED] hover:bg-[#5a3d95] h-14 rounded-[20px] text-base font-medium">
-                        {c.price === 0 ? '무료로 수강하기' : '결제하기'}
-                      </Button>
-                    </form>
-                  </div>
-                </DialogContent>
-              </Dialog>
+                </form>
+              ) : (
+                <FreeEnrollmentButton courseId={c.id} courseTitle={c.title} price={c.price} customerKey={currentUser.id} />
+              )
+            ) : (
+              <Link to="/login">
+                <Button className="w-full bg-[#7C3AED] hover:bg-[#5a3d95] active:scale-[0.92] transition-all h-14 rounded-[20px] text-base font-medium">
+                  수강 신청하기
+                </Button>
+              </Link>
             )}
             {instructor && (
               <div className="mt-6 pt-6 border-t border-gray-200">
@@ -324,7 +366,6 @@ export default function CourseDetail() {
   );
 }
 
-
 function LessonItem({ lesson }: { lesson: { id: string; title: string; videoUrl: string | null; duration: number; isFree: boolean } }) {
   const [editOpen, setEditOpen] = useState(false);
   return (
@@ -339,21 +380,21 @@ function LessonItem({ lesson }: { lesson: { id: string; title: string; videoUrl:
         </DialogTrigger>
         <DialogContent className='rounded-[24px]'>
           <DialogHeader><DialogTitle>레슨 편집</DialogTitle></DialogHeader>
-          <form method='post' className='space-y-4 pt-4'>
-            <input type='hidden' name='_action' value='updateLesson' />
-            <input type='hidden' name='lessonId' value={lesson.id} />
-            <div><label className='text-sm font-medium'>레슨 제목</label><Input name='title' defaultValue={lesson.title} className='mt-1 rounded-[16px]' required /></div>
-            <div><label className='text-sm font-medium'>유튜브 링크</label><Input name='videoUrl' defaultValue={lesson.videoUrl || ''} placeholder='https://youtube.com/...' className='mt-1 rounded-[16px]' /></div>
-            <div><label className='text-sm font-medium'>예상 시간 (분)</label><Input name='durationMin' type='number' defaultValue={Math.round(lesson.duration / 60)} min='1' className='mt-1 rounded-[16px]' required /></div>
+          <form method="post" className="space-y-4 pt-4">
+            <input type="hidden" name="_action" value="updateLesson" />
+            <input type="hidden" name="lessonId" value={lesson.id} />
+            <div><label className='text-sm font-medium'>레슨 제목</label><Input name="title" defaultValue={lesson.title} className="mt-1 rounded-[16px]" required /></div>
+            <div><label className='text-sm font-medium'>유튜브 링크</label><Input name="videoUrl" defaultValue={lesson.videoUrl || ''} placeholder='https://youtube.com/...' className="mt-1 rounded-[16px]" /></div>
+            <div><label className='text-sm font-medium'>예상 시간 (분)</label><Input name="durationMin" type="number" defaultValue={Math.round(lesson.duration / 60)} min='1' className="mt-1 rounded-[16px]" required /></div>
             <div className='flex items-center gap-2'><Input type='checkbox' name='isFree' defaultChecked={lesson.isFree} className='w-4 h-4' /><label className='text-sm'>맛보기 레슨</label></div>
             <Button type='submit' className='w-full bg-[#7C3AED] hover:bg-[#5a3d95] rounded-[16px]' onClick={() => setEditOpen(false)}>저장</Button>
           </form>
         </DialogContent>
       </Dialog>
-      <form method='post' onSubmit={(e) => { if (!confirm('이 레슨을 삭제하시겠습니까?')) e.preventDefault(); }}>
-        <input type='hidden' name='_action' value='deleteLesson' />
-        <input type='hidden' name='lessonId' value={lesson.id} />
-        <Button type='submit' size='sm' variant='ghost' className='text-red-500 rounded-[12px]'>삭제</Button>
+      <form method="post" onSubmit={(e) => { if (!confirm('이 레슨을 삭제하시겠습니까?')) e.preventDefault(); }}>
+        <input type="hidden" name="_action" value="deleteLesson" />
+        <input type="hidden" name="lessonId" value={lesson.id} />
+        <Button type="submit" size='sm' variant='ghost' className='text-red-500 rounded-[12px]'>삭제</Button>
       </form>
     </div>
   );
@@ -368,12 +409,12 @@ function LessonForm({ chapterId }: { chapterId: string }) {
       </DialogTrigger>
       <DialogContent className='rounded-[24px]'>
         <DialogHeader><DialogTitle>새 레슨 추가</DialogTitle></DialogHeader>
-        <form method='post' className='space-y-4 pt-4'>
-          <input type='hidden' name='_action' value='addLesson' />
-          <input type='hidden' name='chapterId' value={chapterId} />
-          <div><label className='text-sm font-medium'>레슨 제목</label><Input name='title' placeholder='레슨 제목' className='mt-1 rounded-[16px]' required /></div>
-          <div><label className='text-sm font-medium'>유튜브 링크</label><Input name='videoUrl' placeholder='https://youtube.com/...' className='mt-1 rounded-[16px]' /></div>
-          <div><label className='text-sm font-medium'>예상 시간 (분)</label><Input name='durationMin' type='number' min='1' defaultValue='10' className='mt-1 rounded-[16px]' required /></div>
+        <form method="post" className="space-y-4 pt-4">
+          <input type="hidden" name="_action" value="addLesson" />
+          <input type="hidden" name="chapterId" value={chapterId} />
+          <div><label className='text-sm font-medium'>레슨 제목</label><Input name="title" placeholder='레슨 제목' className="mt-1 rounded-[16px]" required /></div>
+          <div><label className='text-sm font-medium'>유튜브 링크</label><Input name="videoUrl" placeholder='https://youtube.com/...' className="mt-1 rounded-[16px]" /></div>
+          <div><label className='text-sm font-medium'>예상 시간 (분)</label><Input name="durationMin" type="number" min='1' defaultValue='10' className="mt-1 rounded-[16px]" required /></div>
           <div className='flex items-center gap-2'><Input type='checkbox' name='isFree' className='w-4 h-4' /><label className='text-sm'>맛보기 레슨</label></div>
           <Button type='submit' className='w-full bg-[#7C3AED] hover:bg-[#5a3d95] rounded-[16px]' onClick={() => setOpen(false)}>추가</Button>
         </form>
