@@ -4,7 +4,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { db } from '~/lib/db.server';
 import { getBetterAuthTrustedOrigins } from '~/lib/trusted-origins.server';
 
-const publicAppUrl = process.env.PUBLIC_APP_URL;
+const publicAppUrl = process.env.PUBLIC_APP_URL || process.env.BETTER_AUTH_URL || 'http://localhost:4321';
 const useSecureCrossSiteCookies =
   process.env.NODE_ENV === 'production' || publicAppUrl?.startsWith('https://') === true;
 

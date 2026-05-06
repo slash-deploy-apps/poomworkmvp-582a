@@ -29,6 +29,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   if (u.role === 'client') {
     data.postedJobs = await db.select().from(jobs).where(eq(jobs.clientId, u.id)).orderBy(desc(jobs.createdAt)).limit(20);
+    data.myCourses = await db.select().from(courses).where(eq(courses.instructorId, u.id)).orderBy(desc(courses.createdAt)).limit(20);
     data.receivedApplications = await db.select({
       id: jobApplications.id, status: jobApplications.status, coverLetter: jobApplications.coverLetter, proposedBudget: jobApplications.proposedBudget, proposedDuration: jobApplications.proposedDuration, workerId: jobApplications.workerId,
       workerName: user.name, workerEmail: user.email, workerRating: user.rating,
@@ -96,12 +97,12 @@ export async function action({ request }: ActionFunctionArgs) {
   } else if (actionType === 'rejectApplication') {
     const appId = formData.get('applicationId') as string;
     await db.update(jobApplications).set({ status: 'rejected' }).where(eq(jobApplications.id, appId));
-  } else if (actionType === 'softDeleteJob') {
-    const jobId = formData.get('jobId') as string;
-    await db.update(jobs).set({ status: 'deleted' }).where(eq(jobs.id, jobId));
   } else if (actionType === 'softDeleteCourse') {
     const courseId = formData.get('courseId') as string;
-    await db.update(courses).set({ status: 'deleted' }).where(eq(courses.id, courseId));
+    const course = await db.select().from(courses).where(eq(courses.id, courseId)).limit(1);
+    if (course[0] && course[0].instructorId === session.user.id) {
+      await db.update(courses).set({ status: 'deleted' }).where(eq(courses.id, courseId));
+    }
   }
   return redirect('/dashboard');
 }
@@ -207,6 +208,32 @@ export default function Dashboard() {
       {u.role === 'client' && (
         <>
           <div className='flex justify-between items-center mb-6'>
+            <h2 className='text-xl font-bold'>내 강좌</h2>
+            <Button asChild className='bg-[#7C3AED] rounded-[20px] hover:bg-#7C3AED active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200'><Link to='/courses/new'><GraduationCap className='h-4 w-4 mr-2' />새 강좌 만들기</Link></Button>
+          </div>
+          {(data.myCourses as any[])?.length === 0 ? (
+            <div className='bg-[#EDE9FE] rounded-[32px] p-8 text-center text-[#635F69] mb-8'>등록한 강좌가 없습니다.</div>
+          ) : (
+            <div className='space-y-4 mb-8'>
+              {(data.myCourses as any[])?.map((c: any) => (
+                <div key={c.id} className='bg-[#EDE9FE] rounded-[32px] p-5'>
+                  <div className='flex items-center justify-between mb-3'>
+                    <Link to={`/courses/${c.id}`} className='font-bold text-[#332F3A] hover:text-[#7C3AED] transition-colors'>{c.title}</Link>
+                    <Badge className={c.status === 'published' ? 'bg-green-100 text-green-700' : c.status === 'draft' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-200 text-[#635F69]'}>{c.status === 'published' ? '공개' : c.status === 'draft' ? '임시저장' : '삭제됨'}</Badge>
+                    <Link to={`/courses/${c.id}/edit`} className='px-3 py-1 rounded-[20px] bg-white text-sm font-medium hover:bg-[#DDD6FE] active:scale-[0.92] transition-all duration-200'>수정</Link>
+                    <form method='post' onSubmit={(e) => { if (!confirm('삭제하시겠습니까?')) e.preventDefault(); }}>
+                      <input type='hidden' name='_action' value='softDeleteCourse' />
+                      <input type='hidden' name='courseId' value={c.id} />
+                      <button type='submit' className='px-3 py-1 rounded-[20px] bg-red-50 text-red-600 text-sm font-medium hover:bg-red-100 active:scale-[0.92] transition-all duration-200'>삭제</button>
+                    </form>
+                  </div>
+                  <div className='text-sm text-[#635F69]'>가격: {c.price === 0 ? '묣' : `${new Intl.NumberFormat('ko-KR').format(c.price)}원`}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className='flex justify-between items-center mb-6'>
+            <h2 className='text-xl font-bold'>내 일거리</h2>
             <h2 className='text-xl font-bold'>내 일거리</h2>
             <Button asChild className='bg-[#7C3AED] rounded-[20px] hover:bg-#7C3AED active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200'><Link to='/jobs/new'><Plus className='h-4 w-4 mr-2' />일거리 등록</Link></Button>
           </div>
@@ -221,12 +248,6 @@ export default function Dashboard() {
                     <div className='flex items-center justify-between mb-3'>
                       <Link to={`/jobs/${j.id}`} className='font-bold text-[#332F3A] hover:text-[#7C3AED] transition-colors'>{j.title}</Link>
                       <Badge className={j.status === 'open' ? 'bg-[#EDE9FE] text-[#332F3A]' : 'bg-gray-200 text-[#635F69]'}>{j.status === 'open' ? '모집중' : j.status === 'in_progress' ? '진행중' : '마감'}</Badge>
-                      <Link to={`/jobs/${j.id}/edit`} className='px-3 py-1 rounded-[20px] bg-white text-sm font-medium hover:bg-[#DDD6FE] active:scale-[0.92] transition-all duration-200'>수정</Link>
-                      <form method='post' onSubmit={(e) => { if (!confirm('삭제하시겠습니까?')) e.preventDefault(); }}>
-                        <input type='hidden' name='_action' value='softDeleteJob' />
-                        <input type='hidden' name='jobId' value={j.id} />
-                        <button type='submit' className='px-3 py-1 rounded-[20px] bg-red-50 text-red-600 text-sm font-medium hover:bg-red-100 active:scale-[0.92] transition-all duration-200'>삭제</button>
-                      </form>
                     </div>
                     {j.budgetMin != null && <div className='text-sm text-[#635F69] mb-3'>예산: {new Intl.NumberFormat('ko-KR').format(j.budgetMin)}{j.budgetMax ? `~${new Intl.NumberFormat('ko-KR').format(j.budgetMax)}` : ''}원</div>}
                     {jobApps.length === 0 ? (

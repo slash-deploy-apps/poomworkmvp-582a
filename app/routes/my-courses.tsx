@@ -71,7 +71,6 @@ export async function action({ request }: ActionFunctionArgs) {
       .set({ status: 'draft', updatedAt: new Date() })
       .where(eq(courses.id, courseId));
   } else if (intent === 'delete') {
-    await db.update(courses).set({ status: 'deleted' }).where(eq(courses.id, courseId));
     await db.delete(courses).where(eq(courses.id, courseId));
   }
 
@@ -206,7 +205,6 @@ export default function MyCoursesPage() {
                       : `${new Intl.NumberFormat('ko-KR').format(c.price)}원`}
                   </div>
                   <div className="mt-4 flex gap-2 flex-wrap">
-                    <Link to={`/courses/${c.id}/edit`} className="flex-1 inline-flex items-center justify-center px-4 py-2 rounded-[16px] bg-[#7C3AED] text-white text-sm font-medium hover:bg-[#5a3d95] active:scale-[0.92] transition-all duration-200 h-10">수정</Link>
                     {c.status === 'draft' ? (
                       <Form method="post" className="flex-1">
                         <input type="hidden" name="intent" value="publish" />

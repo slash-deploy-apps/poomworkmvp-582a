@@ -5,6 +5,7 @@ import { Mail, Lock, Briefcase } from 'lucide-react';
 import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
 import { auth } from '~/lib/auth.server';
+import { authClient } from '~/lib/auth-client';
 
 export const meta: MetaFunction = () => [{ title: '로그인 - poomwork' }];
 
@@ -23,17 +24,11 @@ export default function Login() {
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
     try {
-      const res = await fetch('/api/auth/sign-in/email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-        credentials: 'include',
-      });
-      if (res.ok) {
-        window.location.href = '/dashboard';
+      const { error: signInError } = await (authClient.signIn.email as any)({ email, password });
+      if (signInError) {
+        setError(signInError.message || '로그인에 실패했습니다.');
       } else {
-        const data = await res.json();
-        setError(data.message || '로그인에 실패했습니다.');
+        window.location.href = '/dashboard';
       }
     } catch {
       setError('로그인에 실패했습니다.');

@@ -67,40 +67,6 @@ export async function action({ request }: ActionFunctionArgs) {
     const courseId = formData.get('courseId') as string;
     const status = formData.get('status') as string;
     await db.update(courses).set({ status }).where(eq(courses.id, courseId));
-  } else if (actionType === 'updateCoursePrice') {
-    const courseId = formData.get('courseId') as string;
-    const price = Number(formData.get('price')) || 0;
-    await db.update(courses).set({ price }).where(eq(courses.id, courseId));
-  } else if (actionType === 'updateCoursePrice') {
-    const courseId = formData.get('courseId') as string;
-    const price = Number(formData.get('price')) || 0;
-    await db.update(courses).set({ price }).where(eq(courses.id, courseId));
-  } else if (actionType === 'updateUserAccount') {
-    const userId = formData.get('userId') as string;
-    const name = formData.get('name') as string;
-    const email = formData.get('email') as string;
-    const role = formData.get('role') as string;
-    await db.update(user).set({ name, email, role }).where(eq(user.id, userId));
-  } else if (actionType === 'softDeleteUser') {
-    const userId = formData.get('userId') as string;
-    const target = await db.select({ role: user.role }).from(user).where(eq(user.id, userId)).limit(1);
-    if (target[0]?.role === 'admin') return null;
-    await db.update(user).set({ status: 'deleted' as any }).where(eq(user.id, userId));
-  } else if (actionType === 'restoreUser') {
-    const userId = formData.get('userId') as string;
-    await db.update(user).set({ status: 'active' as any }).where(eq(user.id, userId));
-  } else if (actionType === 'softDeleteJob') {
-    const jobId = formData.get('jobId') as string;
-    await db.update(jobs).set({ status: 'deleted' }).where(eq(jobs.id, jobId));
-  } else if (actionType === 'restoreJob') {
-    const jobId = formData.get('jobId') as string;
-    await db.update(jobs).set({ status: 'open' }).where(eq(jobs.id, jobId));
-  } else if (actionType === 'softDeleteCourse') {
-    const courseId = formData.get('courseId') as string;
-    await db.update(courses).set({ status: 'deleted' }).where(eq(courses.id, courseId));
-  } else if (actionType === 'restoreCourse') {
-    const courseId = formData.get('courseId') as string;
-    await db.update(courses).set({ status: 'draft' }).where(eq(courses.id, courseId));
   } else if (actionType === 'releaseEscrow') {
     const paymentId = formData.get('paymentId') as string;
     await db.update(payments).set({ status: 'completed', escrowReleasedAt: new Date() }).where(eq(payments.id, paymentId));
@@ -151,57 +117,9 @@ export default function Admin() {
             <table className='w-full'><thead className='bg-gray-100'><tr><th className='text-left p-3 text-sm'>이름</th><th className='text-left p-3 text-sm'>이메일</th><th className='text-left p-3 text-sm'>역할</th><th className='text-left p-3 text-sm'>평점</th><th className='p-3 text-sm'>변경</th></tr></thead>
             <tbody>
               {allUsers.map((u) => (
-                <tr key={u.id} className={`bg-white ${u.status === 'deleted' ? 'opacity-60' : ''}`}>
-                  <td className='p-3'>
-                    <form method='post' className='flex gap-1'>
-                      <input type='hidden' name='userId' value={u.id} />
-                      <input type='hidden' name='_action' value='updateUserAccount' />
-                      <input name='name' defaultValue={u.name || ''} className='bg-[#EDE9FE] rounded-t-xl border-0 border-b-2 border-gray-400 text-xs px-2 py-1 w-24' />
-                    </form>
-                  </td>
-                  <td className='p-3 text-sm text-[#635F69]'>
-                    <form method='post' className='flex gap-1'>
-                      <input type='hidden' name='userId' value={u.id} />
-                      <input type='hidden' name='_action' value='updateUserAccount' />
-                      <input name='email' defaultValue={u.email} className='bg-[#EDE9FE] rounded-t-xl border-0 border-b-2 border-gray-400 text-xs px-2 py-1 w-40' />
-                    </form>
-                  </td>
-                  <td className='p-3'>
-                    <form method='post' className='flex gap-1'>
-                      <input type='hidden' name='userId' value={u.id} />
-                      <input type='hidden' name='_action' value='updateUserAccount' />
-                      <select name='role' className='bg-[#EDE9FE] rounded-t-xl border-0 border-b-2 border-gray-400 text-xs px-2 py-1' defaultValue={u.role}>
-                        <option value='worker'>worker</option>
-                        <option value='client'>client</option>
-                        <option value='admin'>admin</option>
-                      </select>
-                      <Button type='submit' size='sm' variant='outline' className='text-xs h-6 rounded-[20px] hover:bg-#7C3AED active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 ease-in-out'>변경</Button>
-                    </form>
-                  </td>
-                  <td className='p-3'>{u.rating > 0 ? u.rating : '-'}</td>
-                  <td className='p-3'>
-                    <div className='flex gap-1 flex-wrap'>
-                      {u.status === 'deleted' && <Badge className='bg-red-100 text-red-700 rounded-[20px] text-xs'>삭제됨</Badge>}
-                      {u.role !== 'admin' && u.status !== 'deleted' && (
-                        <form method='post' onSubmit={(e) => { if (!confirm('정말 삭제하시겠습니까?')) e.preventDefault(); }}>
-                          <input type='hidden' name='userId' value={u.id} />
-                          <input type='hidden' name='_action' value='softDeleteUser' />
-                          <Button type='submit' size='sm' variant='outline' className='text-xs h-6 rounded-[20px] border-red-300 text-red-600 hover:bg-red-50 active:scale-[0.92] transition-all duration-200'>삭제</Button>
-                        </form>
-                      )}
-                      {u.status === 'deleted' && (
-                        <form method='post'>
-                          <input type='hidden' name='userId' value={u.id} />
-                          <input type='hidden' name='_action' value='restoreUser' />
-                          <Button type='submit' size='sm' variant='outline' className='text-xs h-6 rounded-[20px] border-green-300 text-green-600 hover:bg-green-50 active:scale-[0.92] transition-all duration-200'>복구</Button>
-                        </form>
-                      )}
-                      <a href={`/forgot-password?email=${encodeURIComponent(u.email)}`} className='inline-flex items-center px-2 py-1 rounded-[20px] border border-gray-300 text-xs text-[#635F69] hover:bg-gray-50 active:scale-[0.92] transition-all duration-200'>비밀번호 재설정</a>
-                    </div>
-                  </td>
-                </tr>
+                <tr key={u.id} className='bg-white'><td className='p-3'>{u.name || '-'}</td><td className='p-3 text-sm text-[#635F69]'>{u.email}</td><td className='p-3'><Badge variant='outline'>{u.role}</Badge></td><td className='p-3'>{u.rating > 0 ? u.rating : '-'}</td>
+                  <td className='p-3'><form method='post' className='flex gap-1'><input type='hidden' name='userId' value={u.id} /><input type='hidden' name='_action' value='updateRole' /><select name='role' className='bg-[#EDE9FE] rounded-t-xl border-0 border-b-2 border-gray-400 text-xs px-2 py-1' defaultValue={u.role}><option value='worker'>worker</option><option value='client'>client</option><option value='admin'>admin</option></select><Button type='submit' size='sm' variant='outline' className='text-xs h-6 rounded-[20px] hover:bg-#7C3AED active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 ease-in-out'>변경</Button></form></td></tr>
               ))}
-
             </tbody></table>
           </div>
         </TabsContent>
@@ -211,11 +129,8 @@ export default function Admin() {
             <table className='w-full'><thead className='bg-gray-100'><tr><th className='text-left p-3 text-sm'>제목</th><th className='text-left p-3 text-sm'>의뢰자</th><th className='text-left p-3 text-sm'>상태</th><th className='text-left p-3 text-sm'>지원수</th><th className='p-3 text-sm'>변경</th></tr></thead>
             <tbody>
               {allJobs.map((j) => (
-                <tr key={j.id} className={`bg-white ${j.status === 'deleted' ? 'opacity-60' : ''}`}><td className='p-3'>{j.title}</td><td className='p-3 text-sm'>{j.clientName || '-'}</td><td className='p-3'><Badge className={`rounded-[20px] ${j.status === 'open' ? 'bg-emerald-100 text-emerald-700' : j.status === 'deleted' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-[#332F3A]'}`}>{j.status}</Badge></td><td className='p-3'>{j.applicationCount}</td>
-                  <td className='p-3'><div className='flex gap-1 flex-wrap'><form method='post' className='flex gap-1'><input type='hidden' name='jobId' value={j.id} /><input type='hidden' name='_action' value='updateJobStatus' /><select name='status' className='bg-[#EDE9FE] rounded-t-xl border-0 border-b-2 border-gray-400 text-xs px-2 py-1' defaultValue={j.status}><option value='open'>open</option><option value='in_progress'>in_progress</option><option value='completed'>completed</option><option value='closed'>closed</option></select><Button type='submit' size='sm' variant='outline' className='text-xs h-6 rounded-[20px] hover:bg-#7C3AED active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 ease-in-out'>변경</Button></form>
-                  {j.status !== 'deleted' && (<form method='post' onSubmit={(e) => { if (!confirm('정말 삭제하시겠습니까?')) e.preventDefault(); }}><input type='hidden' name='jobId' value={j.id} /><input type='hidden' name='_action' value='softDeleteJob' /><Button type='submit' size='sm' variant='outline' className='text-xs h-6 rounded-[20px] border-red-300 text-red-600 hover:bg-red-50 active:scale-[0.92] transition-all duration-200'>삭제</Button></form>)}
-                  {j.status === 'deleted' && (<form method='post'><input type='hidden' name='jobId' value={j.id} /><input type='hidden' name='_action' value='restoreJob' /><Button type='submit' size='sm' variant='outline' className='text-xs h-6 rounded-[20px] border-green-300 text-green-600 hover:bg-green-50 active:scale-[0.92] transition-all duration-200'>복구</Button></form>)}
-                  </div></td></tr>
+                <tr key={j.id} className='bg-white'><td className='p-3'>{j.title}</td><td className='p-3 text-sm'>{j.clientName || '-'}</td><td className='p-3'><Badge className={`rounded-[20px] ${j.status === 'open' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-[#332F3A]'}`}>{j.status}</Badge></td><td className='p-3'>{j.applicationCount}</td>
+                  <td className='p-3'><form method='post' className='flex gap-1'><input type='hidden' name='jobId' value={j.id} /><input type='hidden' name='_action' value='updateJobStatus' /><select name='status' className='bg-[#EDE9FE] rounded-t-xl border-0 border-b-2 border-gray-400 text-xs px-2 py-1' defaultValue={j.status}><option value='open'>open</option><option value='in_progress'>in_progress</option><option value='completed'>completed</option><option value='closed'>closed</option></select><Button type='submit' size='sm' variant='outline' className='text-xs h-6 rounded-[20px] hover:bg-#7C3AED active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 ease-in-out'>변경</Button></form></td></tr>
               ))}
             </tbody></table>
           </div>
@@ -226,7 +141,8 @@ export default function Admin() {
             <table className='w-full'><thead className='bg-gray-100'><tr><th className='text-left p-3 text-sm'>제목</th><th className='text-left p-3 text-sm'>강사</th><th className='text-left p-3 text-sm'>가격</th><th className='text-left p-3 text-sm'>수강생</th><th className='text-left p-3 text-sm'>상태</th><th className='p-3 text-sm'>변경</th></tr></thead>
             <tbody>
               {allCourses.map((c) => (
-                <tr key={c.id} className={`bg-white ${c.status === 'deleted' ? 'opacity-60' : ''}`}><td className='p-3'>{c.title}</td><td className='p-3 text-sm'>{c.instructorName || '-'}</td><td className='p-3'><form method='post' className='flex gap-1 items-center'><input type='hidden' name='courseId' value={c.id} /><input type='hidden' name='_action' value='updateCoursePrice' /><input name='price' type='number' defaultValue={c.price} className='bg-[#EDE9FE] rounded-t-xl border-0 border-b-2 border-gray-400 text-xs px-2 py-1 w-20' /><span className='text-xs text-[#635F69]'>원</span><Button type='submit' size='sm' variant='outline' className='text-xs h-6 rounded-[20px] hover:bg-#7C3AED active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 ease-in-out'>변경</Button></form></td><td className='p-3'>{c.enrollmentCount}</td><td className='p-3'><Badge variant='outline' className={`rounded-[20px] ${c.status === 'deleted' ? 'bg-red-100 text-red-700' : ''}`}>{c.status}</Badge></td><td className='p-3'><div className='flex gap-1 flex-wrap'><form method='post'><input type='hidden' name='courseId' value={c.id} /><input type='hidden' name='_action' value='softDeleteCourse' /><Button type='submit' size='sm' variant='destructive' className='text-xs h-6 rounded-[20px] bg-red-500 hover:bg-red-600' onClick={(e) => { if (!confirm('삭제하시겠습니까?')) e.preventDefault(); }}>삭제</Button></form>{c.status === 'deleted' && <form method='post'><input type='hidden' name='courseId' value={c.id} /><input type='hidden' name='_action' value='restoreCourse' /><Button type='submit' size='sm' variant='outline' className='text-xs h-6 rounded-[20px]'>복구</Button></form>}</div></td></tr>
+                <tr key={c.id} className='bg-white'><td className='p-3'>{c.title}</td><td className='p-3 text-sm'>{c.instructorName || '-'}</td><td className='p-3'>{c.price === 0 ? '무료' : `${new Intl.NumberFormat('ko-KR').format(c.price)}원`}</td><td className='p-3'>{c.enrollmentCount}</td><td className='p-3'><Badge variant='outline' className='rounded-[20px]'>{c.status}</Badge></td>
+                  <td className='p-3'><form method='post' className='flex gap-1'><input type='hidden' name='courseId' value={c.id} /><input type='hidden' name='_action' value='updateCourseStatus' /><select name='status' className='bg-[#EDE9FE] rounded-t-xl border-0 border-b-2 border-gray-400 text-xs px-2 py-1' defaultValue={c.status}><option value='draft'>draft</option><option value='published'>published</option><option value='archived'>archived</option></select><Button type='submit' size='sm' variant='outline' className='text-xs h-6 rounded-[20px] hover:bg-#7C3AED active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 ease-in-out'>변경</Button></form></td></tr>
               ))}
             </tbody></table>
           </div>

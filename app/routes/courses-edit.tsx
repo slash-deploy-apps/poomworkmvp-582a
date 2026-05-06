@@ -9,6 +9,7 @@ import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
 import { Textarea } from '~/components/ui/textarea';
 import { Label } from '~/components/ui/label';
+import { Spinner } from '~/components/ui/spinner';
 import { ImageUploader } from '~/components/image-uploader';
 
 export const meta: MetaFunction = () => [{ title: '강좌 수정 - poomwork' }];
@@ -51,6 +52,14 @@ export default function CoursesEdit() {
   const [thumbnailUrl, setThumbnailUrl] = useState<string>(course.thumbnailUrl || '');
   const navigation = useNavigation();
   const isSubmitting = navigation.state === 'submitting';
+
+  if (navigation.state === 'loading') {
+    return (
+      <div className="container mx-auto px-4 py-20 flex justify-center">
+        <Spinner className="size-8 text-[#7C3AED]" />
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-2xl">

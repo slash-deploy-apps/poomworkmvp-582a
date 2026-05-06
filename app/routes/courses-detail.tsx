@@ -17,7 +17,7 @@ import { auth } from '~/lib/auth.server';
 export async function loader({ request, params }: LoaderFunctionArgs) {
   const session = await auth.api.getSession({ headers: request.headers });
   const course = await db.select().from(courses).where(eq(courses.id, params.courseId!)).limit(1);
-  if (!course[0] || course[0].status === 'deleted') throw new Response('Not Found', { status: 404 });
+  if (!course[0]) throw new Response('Not Found', { status: 404 });
   const instructor = await db.select().from(user).where(eq(user.id, course[0].instructorId)).limit(1);
   const chapters = await db.select().from(courseChapters).where(eq(courseChapters.courseId, params.courseId!)).orderBy(courseChapters.sortOrder);
   const lessons = await db.select().from(courseLessons).where(eq(courseLessons.courseId, params.courseId!)).orderBy(courseLessons.sortOrder);
@@ -271,7 +271,12 @@ export default function CourseDetail() {
           )}
           {isOwner && (
             <div className="bg-[#EDE9FE] rounded-[32px] p-6 space-y-6">
-              <h2 className="text-lg font-bold">커리큘럼 관리</h2>
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg font-bold">커리큘럼 관리</h2>
+                <Link to={`/courses/${c.id}/edit`}>
+                  <Button size="sm" className="bg-[#7C3AED] hover:bg-[#5a3d95] rounded-[16px]">강좌 정보 수정</Button>
+                </Link>
+              </div>
               <form method="post" className="flex gap-2">
                 <input type="hidden" name="_action" value="addChapter" />
                 <Input name="title" placeholder="새 챕터 제목" className="flex-1 rounded-[20px] bg-white border-0" required />
