@@ -234,7 +234,6 @@ export default function Dashboard() {
           )}
           <div className='flex justify-between items-center mb-6'>
             <h2 className='text-xl font-bold'>내 일거리</h2>
-            <h2 className='text-xl font-bold'>내 일거리</h2>
             <Button asChild className='bg-[#7C3AED] rounded-[20px] hover:bg-#7C3AED active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200'><Link to='/jobs/new'><Plus className='h-4 w-4 mr-2' />일거리 등록</Link></Button>
           </div>
           {(data.postedJobs as any[])?.length === 0 ? (
