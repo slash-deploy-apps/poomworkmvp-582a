@@ -47,6 +47,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <Meta />
         <Links />
+        <script src="https://pay.nicepay.co.kr/v1/js/"></script>
       </head>
       <body className="bg-[#F4F1FA] text-foreground antialiased relative min-h-screen">
         {/* Clay Background Blobs */}

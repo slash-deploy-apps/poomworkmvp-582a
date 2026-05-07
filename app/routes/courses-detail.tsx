@@ -128,48 +128,69 @@ export async function action({ request, params }: ActionFunctionArgs) {
 
 export const meta: MetaFunction<typeof loader> = ({ data }) => [{ title: `${data?.course.title || '강좌'} - poomwork` }];
 
-function EnrollmentButton({ courseId }: { courseId: string }) {
-  const [loading, setLoading] = useState(false);
+function EnrollmentButton({ courseId, price, title }: { courseId: string; price: number; title: string }) {
+  const [isLoading, setIsLoading] = useState(false);
 
-  async function handleEnroll() {
-    setLoading(true);
-    console.log('[Enrollment] Starting payment prepare...');
+  const handlePay = async () => {
+    setIsLoading(true);
     try {
-      const newOrderId = crypto.randomUUID();
-      console.log('[Enrollment] OrderId:', newOrderId);
+      const orderId = crypto.randomUUID();
       const res = await fetch('/api/payment/prepare', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ courseId, orderId: newOrderId }),
+        body: JSON.stringify({ courseId, orderId }),
       });
-      console.log('[Enrollment] Response status:', res.status);
       const data = await res.json();
-      console.log('[Enrollment] Response data:', data);
-      if (data.success && data.checkoutUrl) {
-        console.log('[Enrollment] Redirecting to:', data.checkoutUrl);
-        window.location.href = data.checkoutUrl;
-      } else {
-        console.error('Payment prepare failed:', data);
-        alert(data.message || data.error || '결제 준비에 실패했습니다.');
-        setLoading(false);
+      
+      if (!data.success) {
+        alert(data.message || '결제 준비에 실패했습니다.');
+        setIsLoading(false);
+        return;
       }
+
+      const nice = (window as any).AUTHNICE;
+      if (!nice) {
+        alert('결제 모듈을 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
+        setIsLoading(false);
+        return;
+      }
+
+      const returnUrl = `${window.location.origin}/payment/success`;
+      
+      nice.requestPay({
+        clientId: 'R2_770a929902ef484eb91d6c43688e80c1',
+        method: 'card',
+        orderId: orderId,
+        amount: price,
+        goodsName: title,
+        returnUrl: returnUrl,
+        fnError: function(result: any) {
+          console.error('NicePay error:', result);
+          alert('결제 오류: ' + (result.errorMsg || '알 수 없는 오류'));
+          setIsLoading(false);
+        }
+      });
+      
     } catch (err) {
-      console.error('Failed to prepare payment:', err);
+      console.error('Payment error:', err);
       alert('결제 준비 중 오류가 발생했습니다.');
-      setLoading(false);
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
-    <Button
-      onClick={handleEnroll}
-      disabled={loading}
-      className="w-full bg-[#7C3AED] hover:bg-[#5a3d95] active:scale-[0.92] transition-all h-14 rounded-[20px] text-base font-medium"
+    <button
+      type="button"
+      onClick={handlePay}
+      disabled={isLoading}
+      className="w-full bg-[#7C3AED] hover:bg-[#5a3d95] active:scale-[0.92] transition-all h-14 rounded-[20px] text-base font-medium text-white disabled:opacity-50"
     >
-      {loading ? '처리 중...' : '수강 신청하기'}
-    </Button>
+      {isLoading ? '로딩 중...' : '수강 신청하기'}
+    </button>
   );
 }
+
+
 
 export default function CourseDetail() {
   const { course: c, instructor, chapters, lessons, enrollment, user: currentUser } = useLoaderData<typeof loader>();
@@ -330,7 +351,7 @@ export default function CourseDetail() {
                   </Button>
                 </form>
               ) : (
-                <EnrollmentButton courseId={c.id} />
+                <EnrollmentButton courseId={c.id} price={c.price} title={c.title} />
               )
             ) : (
               <Link to="/login">
