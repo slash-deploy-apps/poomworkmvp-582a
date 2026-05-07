@@ -1,5 +1,4 @@
 import { ImageUploader } from '~/components/image-uploader';
-import { PaymentWidget } from '~/components/payment-widget';
 import { useState } from 'react';
 import { Link, redirect, useLoaderData } from 'react-router';
 import type { MetaFunction, LoaderFunctionArgs, ActionFunctionArgs } from 'react-router';
@@ -22,7 +21,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
   const chapters = await db.select().from(courseChapters).where(eq(courseChapters.courseId, params.courseId!)).orderBy(courseChapters.sortOrder);
   const lessons = await db.select().from(courseLessons).where(eq(courseLessons.courseId, params.courseId!)).orderBy(courseLessons.sortOrder);
   const enrollment = session?.user ? await db.select().from(enrollments).where(sql`${enrollments.userId} = ${session.user.id} AND ${enrollments.courseId} = ${params.courseId!}`).limit(1) : [];
-  return { course: course[0], instructor: instructor[0] || null, chapters, lessons, enrollment: enrollment[0] || null, user: session?.user ?? null, tossClientKey: process.env.TOSS_CLIENT_KEY ?? null };
+  return { course: course[0], instructor: instructor[0] || null, chapters, lessons, enrollment: enrollment[0] || null, user: session?.user ?? null };
 }
 
 export async function action({ request, params }: ActionFunctionArgs) {
@@ -118,7 +117,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
     return redirect(`/courses/${params.courseId}`);
   }
 
-  // Free courses only - paid courses go through TossPayments widget flow
+  // Free courses only - paid courses go through NicePay widget flow
   if (course[0].price === 0) {
     await db.insert(enrollments).values({ userId: session.user.id, courseId: params.courseId! });
     await db.update(courses).set({ enrollmentCount: sql`${courses.enrollmentCount} + 1` }).where(eq(courses.id, params.courseId!));
@@ -129,14 +128,11 @@ export async function action({ request, params }: ActionFunctionArgs) {
 
 export const meta: MetaFunction<typeof loader> = ({ data }) => [{ title: `${data?.course.title || '강좌'} - poomwork` }];
 
-function FreeEnrollmentButton({ courseId, courseTitle, price, customerKey }: { courseId: string; courseTitle: string; price: number; customerKey: string }) {
-  const [widgetOpen, setWidgetOpen] = useState(false);
-  const [prepareLoading, setPrepareLoading] = useState(false);
-  const [orderId, setOrderId] = useState<string | null>(null);
-  const tossClientKey = typeof window !== 'undefined' ? (window as unknown as { ENV_TOSS_CLIENT_KEY?: string }).ENV_TOSS_CLIENT_KEY : null;
+function EnrollmentButton({ courseId }: { courseId: string }) {
+  const [loading, setLoading] = useState(false);
 
   const handleEnroll = async () => {
-    setPrepareLoading(true);
+    setLoading(true);
     try {
       const newOrderId = crypto.randomUUID();
       const res = await fetch('/api/payment/prepare', {
@@ -145,36 +141,28 @@ function FreeEnrollmentButton({ courseId, courseTitle, price, customerKey }: { c
         body: JSON.stringify({ courseId, orderId: newOrderId }),
       });
       const data = await res.json();
-      if (data.success) {
-        setOrderId(newOrderId);
-        setWidgetOpen(true);
+      if (data.success && data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      } else {
+        console.error('Payment prepare failed:', data);
+        alert(data.message || '결제 준비에 실패했습니다.');
+        setLoading(false);
       }
     } catch (err) {
       console.error('Failed to prepare payment:', err);
-    } finally {
-      setPrepareLoading(false);
+      alert('결제 준비 중 오류가 발생했습니다.');
+      setLoading(false);
     }
   };
 
   return (
-    <>
-      <Button
-        onClick={handleEnroll}
-        disabled={prepareLoading}
-        className="w-full bg-[#7C3AED] hover:bg-[#5a3d95] active:scale-[0.92] transition-all h-14 rounded-[20px] text-base font-medium"
-      >
-        {prepareLoading ? '처리 중...' : '수강 신청하기'}
-      </Button>
-      <PaymentWidget
-        courseId={courseId}
-        courseTitle={courseTitle}
-        price={price}
-        customerKey={customerKey}
-        orderId={orderId || ''}
-        onClose={() => setWidgetOpen(false)}
-        isOpen={widgetOpen}
-      />
-    </>
+    <Button
+      onClick={handleEnroll}
+      disabled={loading}
+      className="w-full bg-[#7C3AED] hover:bg-[#5a3d95] active:scale-[0.92] transition-all h-14 rounded-[20px] text-base font-medium"
+    >
+      {loading ? '처리 중...' : '수강 신청하기'}
+    </Button>
   );
 }
 
@@ -337,7 +325,7 @@ export default function CourseDetail() {
                   </Button>
                 </form>
               ) : (
-                <FreeEnrollmentButton courseId={c.id} courseTitle={c.title} price={c.price} customerKey={currentUser.id} />
+                <EnrollmentButton courseId={c.id} />
               )
             ) : (
               <Link to="/login">

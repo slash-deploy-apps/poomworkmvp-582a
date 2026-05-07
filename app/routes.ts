@@ -42,10 +42,10 @@ export default [
   // Admin
   route('admin', 'routes/admin.tsx'),
 
-  // Payments
-  route('payment/success', 'routes/payment.success.tsx'),
-  route('payment/fail', 'routes/payment.fail.tsx'),
-  route('api/payment/prepare', 'routes/api.payment.prepare.ts'),
-  route('api/payment/confirm', 'routes/api.payment.confirm.ts'),
-  route('api/payment/refund', 'routes/api.payment.refund.ts'),
+  // Payments (NicePay)
+  route('payment/success', 'routes/payment.nicepay.success.tsx'),
+  route('payment/fail', 'routes/payment.nicepay.fail.tsx'),
+  route('api/payment/prepare', 'routes/api.nicepay.prepare.ts'),
+  route('api/payment/confirm', 'routes/api.nicepay.confirm.ts'),
+  route('api/payment/refund', 'routes/api.nicepay.refund.ts'),
 ] satisfies RouteConfig;

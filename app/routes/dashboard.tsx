@@ -1,6 +1,6 @@
 import { Link, redirect, useLoaderData } from 'react-router';
 import type { MetaFunction, LoaderFunctionArgs, ActionFunctionArgs } from 'react-router';
-import { eq, desc, sql } from 'drizzle-orm';
+import { eq, desc, inArray } from 'drizzle-orm';
 import { Briefcase, Users, BookOpen, CreditCard, GraduationCap, Plus, Receipt } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
 import { Badge } from '~/components/ui/badge';
@@ -12,64 +12,106 @@ import { auth } from '~/lib/auth.server';
 export const meta: MetaFunction = () => [{ title: '대시보드 - poomwork' }];
 
 export async function loader({ request }: LoaderFunctionArgs) {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session?.user) return redirect('/login');
-  const u = session.user;
-  let data: Record<string, any> = { user: u };
+  try {
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (!session?.user) return redirect('/login');
+    const u = session.user;
+    let data: Record<string, any> = { user: u };
 
-  if (u.role === 'worker') {
-    data.applications = await db.select({ id: jobApplications.id, status: jobApplications.status, coverLetter: jobApplications.coverLetter, proposedBudget: jobApplications.proposedBudget, createdAt: jobApplications.createdAt, jobTitle: jobs.title, clientName: user.name })
-      .from(jobApplications).leftJoin(jobs, eq(jobApplications.jobId, jobs.id)).leftJoin(user, eq(jobs.clientId, user.id))
-      .where(eq(jobApplications.workerId, u.id)).orderBy(desc(jobApplications.createdAt)).limit(20);
-    data.enrollments = await db.select({ id: enrollments.id, progress: enrollments.progress, courseTitle: courses.title, level: courses.level })
-      .from(enrollments).leftJoin(courses, eq(enrollments.courseId, courses.id))
-      .where(eq(enrollments.userId, u.id)).orderBy(desc(enrollments.createdAt)).limit(10);
-    data.workerPayments = await db.select().from(payments).where(eq(payments.payeeId, u.id)).orderBy(desc(payments.createdAt)).limit(20);
-  }
+    if (u.role === 'worker') {
+      // 1. Fetch applications
+      const apps = await db.select().from(jobApplications).where(eq(jobApplications.workerId, u.id)).orderBy(desc(jobApplications.createdAt));
 
-  if (u.role === 'client') {
-    data.postedJobs = await db.select().from(jobs).where(eq(jobs.clientId, u.id)).orderBy(desc(jobs.createdAt)).limit(20);
-    data.myCourses = await db.select().from(courses).where(eq(courses.instructorId, u.id)).orderBy(desc(courses.createdAt)).limit(20);
-    data.receivedApplications = await db.select({
-      id: jobApplications.id, status: jobApplications.status, coverLetter: jobApplications.coverLetter, proposedBudget: jobApplications.proposedBudget, proposedDuration: jobApplications.proposedDuration, workerId: jobApplications.workerId,
-      workerName: user.name, workerEmail: user.email, workerRating: user.rating,
-      jobId: jobs.id, jobTitle: jobs.title, jobBudgetMin: jobs.budgetMin, jobBudgetMax: jobs.budgetMax,
-    })
-      .from(jobApplications)
-      .leftJoin(jobs, eq(jobApplications.jobId, jobs.id))
-      .leftJoin(user, eq(jobApplications.workerId, user.id))
-      .where(eq(jobs.clientId, u.id)).orderBy(desc(jobApplications.createdAt)).limit(50);
-  }
-  if (u.role === 'client') {
-    const userPayments = await db.select({
-      id: payments.id,
-      amount: payments.amount,
-      type: payments.type,
-      status: payments.status,
-      paymentMethod: payments.tossPaymentMethod,
-      createdAt: payments.createdAt,
-      courseId: payments.referenceId,
-    })
-    .from(payments)
-    .where(eq(payments.payerId, u.id))
-    .orderBy(desc(payments.createdAt));
+      // 2. Fetch job details
+      const jobIds = [...new Set(apps.map(a => a.jobId))];
+      const jobMap = new Map();
+      if (jobIds.length > 0) {
+        const jobList = await db.select().from(jobs).where(inArray(jobs.id, jobIds));
+        for (const j of jobList) jobMap.set(j.id, j);
+      }
 
-    const courseIds = userPayments.filter(p => p.type === 'course_purchase').map(p => p.courseId).filter(Boolean);
-    const relevantCourses = courseIds.length > 0 ? await db.select({ id: courses.id, title: courses.title }).from(courses).where(sql`${courses.id} IN (${sql.join(courseIds.map(id => sql`${id}`), sql`, `)})`) : [];
-    const courseMap = Object.fromEntries(relevantCourses.map(c => [c.id, c.title]));
-    data.userPayments = userPayments.map(p => ({
-      ...p,
-      courseTitle: p.type === 'course_purchase' ? courseMap[p.courseId as string] : null,
-    }));
-  }
-  if (u.role === 'admin') {
-    const [userCount] = await db.select({ count: sql<number>`count(*)` }).from(user);
-    const [jobCount] = await db.select({ count: sql<number>`count(*)` }).from(jobs);
-    const [courseCount] = await db.select({ count: sql<number>`count(*)` }).from(courses);
-    data.stats = { users: userCount?.count ?? 0, jobs: jobCount?.count ?? 0, courses: courseCount?.count ?? 0 };
-  }
+      // 3. Fetch client details
+      const clientIds = [...new Set(Array.from(jobMap.values()).map((j: any) => j.clientId))];
+      const clientMap = new Map();
+      if (clientIds.length > 0) {
+        const clientList = await db.select().from(user).where(inArray(user.id, clientIds));
+        for (const c of clientList) clientMap.set(c.id, c);
+      }
 
-  return data;
+      // 4. Merge
+      data.applications = apps.map(a => {
+        const job = jobMap.get(a.jobId);
+        const client = job ? clientMap.get(job.clientId) : null;
+        return {
+          ...a,
+          jobTitle: job?.title || '',
+          clientName: client?.name || '',
+        };
+      });
+
+      // 5. Fetch enrollments
+      const enrolls = await db.select().from(enrollments).where(eq(enrollments.userId, u.id)).orderBy(desc(enrollments.createdAt));
+      const courseIds = [...new Set(enrolls.map(e => e.courseId))];
+      const courseMap = new Map();
+      if (courseIds.length > 0) {
+        const courseList = await db.select().from(courses).where(inArray(courses.id, courseIds));
+        for (const c of courseList) courseMap.set(c.id, c);
+      }
+      data.enrollments = enrolls.map(e => {
+        const course = courseMap.get(e.courseId);
+        return {
+          ...e,
+          title: course?.title || '',
+          level: course?.level || '',
+          thumbnailUrl: course?.thumbnailUrl || '',
+        };
+      });
+
+      data.workerPayments = await db.select().from(payments).where(eq(payments.payeeId, u.id)).orderBy(desc(payments.createdAt));
+    }
+
+    if (u.role === 'client') {
+      data.postedJobs = await db.select().from(jobs).where(eq(jobs.clientId, u.id)).orderBy(desc(jobs.createdAt));
+      data.myCourses = await db.select().from(courses).where(eq(courses.instructorId, u.id)).orderBy(desc(courses.createdAt));
+
+      const myJobIds = data.postedJobs.map((j: any) => j.id);
+      if (myJobIds.length > 0) {
+        const apps = await db.select().from(jobApplications).where(inArray(jobApplications.jobId, myJobIds)).orderBy(desc(jobApplications.createdAt));
+        const workerIds = [...new Set(apps.map(a => a.workerId))];
+        const workerMap = new Map();
+        if (workerIds.length > 0) {
+          const workerList = await db.select().from(user).where(inArray(user.id, workerIds));
+          for (const w of workerList) workerMap.set(w.id, w);
+        }
+        data.receivedApplications = apps.map(a => {
+          const worker = workerMap.get(a.workerId);
+          return {
+            ...a,
+            workerName: worker?.name || '',
+            workerEmail: worker?.email || '',
+            workerRating: worker?.rating || 0,
+          };
+        });
+      } else {
+        data.receivedApplications = [];
+      }
+
+      data.userPayments = await db.select().from(payments).where(eq(payments.payerId, u.id)).orderBy(desc(payments.createdAt));
+    }
+
+    if (u.role === 'admin') {
+      const allUsers = await db.select().from(user);
+      const allJobs = await db.select().from(jobs);
+      const allCourses = await db.select().from(courses);
+      data.stats = { users: allUsers.length, jobs: allJobs.length, courses: allCourses.length };
+    }
+
+    return data;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[Dashboard loader error]', message);
+    return { user: null, error: message };
+  }
 }
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -110,6 +152,16 @@ export async function action({ request }: ActionFunctionArgs) {
 export default function Dashboard() {
   const data = useLoaderData<typeof loader>();
   const u = data.user as any;
+
+  if (data.error) {
+    return (
+      <div className="container mx-auto px-4 py-20 text-center">
+        <h1 className="text-2xl font-bold text-red-600 mb-4">대시보드 오류</h1>
+        <p className="text-[#635F69] mb-4">{data.error}</p>
+        <Button onClick={() => window.location.reload()} className="bg-[#7C3AED] rounded-[20px]">새로고침</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -211,7 +263,7 @@ export default function Dashboard() {
             <h2 className='text-xl font-bold'>내 강좌</h2>
             <Button asChild className='bg-[#7C3AED] rounded-[20px] hover:bg-#7C3AED active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200'><Link to='/courses/new'><GraduationCap className='h-4 w-4 mr-2' />새 강좌 만들기</Link></Button>
           </div>
-          {(data.myCourses as any[])?.length === 0 ? (
+          {!(data.myCourses as any[])?.length ? (
             <div className='bg-[#EDE9FE] rounded-[32px] p-8 text-center text-[#635F69] mb-8'>등록한 강좌가 없습니다.</div>
           ) : (
             <div className='space-y-4 mb-8'>
@@ -227,7 +279,7 @@ export default function Dashboard() {
                       <button type='submit' className='px-3 py-1 rounded-[20px] bg-red-50 text-red-600 text-sm font-medium hover:bg-red-100 active:scale-[0.92] transition-all duration-200'>삭제</button>
                     </form>
                   </div>
-                  <div className='text-sm text-[#635F69]'>가격: {c.price === 0 ? '묣' : `${new Intl.NumberFormat('ko-KR').format(c.price)}원`}</div>
+                  <div className='text-sm text-[#635F69]'>가격: {(c.price ?? 0) === 0 ? '묣' : `${new Intl.NumberFormat('ko-KR').format(c.price ?? 0)}원`}</div>
                 </div>
               ))}
             </div>

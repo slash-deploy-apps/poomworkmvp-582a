@@ -1,6 +1,18 @@
 {
   "version": 1,
   "skills": {
+    "nicepay-devguide": {
+      "source": "paulp-o/opencode-skill-nicepay-devguide",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "e3cde29d016ebf0932bde675a5cfb66b4f889857a2b370577740ab9451aa6216"
+    },
+    "nicepay-start-api": {
+      "source": "paulp-o/opencode-skill-nicepay-start-api",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "73b0d4858698c57835d4fffe7a68ca274999a8773c603bc42f7f0b128dbcaec7"
+    },
     "tosspayments-docs": {
       "source": "mainsoft-2024/toss-payments-docs-fetcher-skill",
       "sourceType": "github",

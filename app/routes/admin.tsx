@@ -30,6 +30,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     type: payments.type,
     status: payments.status,
     paymentMethod: payments.tossPaymentMethod,
+    paymentProvider: payments.paymentProvider,
     createdAt: payments.createdAt,
     payerId: payments.payerId,
     payerName: user.name,

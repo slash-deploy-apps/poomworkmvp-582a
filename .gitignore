@@ -29,6 +29,7 @@ yarn-error.log*
 
 # local env overrides
 .env*.local
+.env
 # .env.development
 # .env.production
 

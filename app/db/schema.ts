@@ -414,6 +414,8 @@ export const payments = sqliteTable(
     escrowReleasedAt: d.integer({ mode: 'timestamp' }),
     orderId: d.text({ length: 255 }).unique(),
     paymentKey: d.text({ length: 255 }),
+    nicepaySessionId: d.text({ length: 255 }),
+    paymentProvider: d.text({ length: 20 }),
     tossPaymentMethod: d.text({ length: 50 }),
     approvedAt: d.integer({ mode: 'timestamp' }),
     cancelledAt: d.integer({ mode: 'timestamp' }),
