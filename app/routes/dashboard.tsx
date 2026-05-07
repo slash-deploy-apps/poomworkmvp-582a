@@ -67,7 +67,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
         };
       });
 
-      data.workerPayments = await db.select().from(payments).where(eq(payments.payeeId, u.id)).orderBy(desc(payments.createdAt));
+      data.workerPayments = await db.select({
+        id: payments.id,
+        payerId: payments.payerId,
+        payeeId: payments.payeeId,
+        amount: payments.amount,
+        type: payments.type,
+        status: payments.status,
+        referenceId: payments.referenceId,
+        createdAt: payments.createdAt,
+      }).from(payments).where(eq(payments.payeeId, u.id)).orderBy(desc(payments.createdAt));
     }
 
     if (u.role === 'client') {
@@ -96,7 +105,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
         data.receivedApplications = [];
       }
 
-      data.userPayments = await db.select().from(payments).where(eq(payments.payerId, u.id)).orderBy(desc(payments.createdAt));
+      data.userPayments = await db.select({
+        id: payments.id,
+        payerId: payments.payerId,
+        payeeId: payments.payeeId,
+        amount: payments.amount,
+        type: payments.type,
+        status: payments.status,
+        referenceId: payments.referenceId,
+        createdAt: payments.createdAt,
+      }).from(payments).where(eq(payments.payerId, u.id)).orderBy(desc(payments.createdAt));
     }
 
     if (u.role === 'admin') {

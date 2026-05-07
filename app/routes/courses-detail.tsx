@@ -131,21 +131,26 @@ export const meta: MetaFunction<typeof loader> = ({ data }) => [{ title: `${data
 function EnrollmentButton({ courseId }: { courseId: string }) {
   const [loading, setLoading] = useState(false);
 
-  const handleEnroll = async () => {
+  async function handleEnroll() {
     setLoading(true);
+    console.log('[Enrollment] Starting payment prepare...');
     try {
       const newOrderId = crypto.randomUUID();
+      console.log('[Enrollment] OrderId:', newOrderId);
       const res = await fetch('/api/payment/prepare', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ courseId, orderId: newOrderId }),
       });
+      console.log('[Enrollment] Response status:', res.status);
       const data = await res.json();
+      console.log('[Enrollment] Response data:', data);
       if (data.success && data.checkoutUrl) {
+        console.log('[Enrollment] Redirecting to:', data.checkoutUrl);
         window.location.href = data.checkoutUrl;
       } else {
         console.error('Payment prepare failed:', data);
-        alert(data.message || '결제 준비에 실패했습니다.');
+        alert(data.message || data.error || '결제 준비에 실패했습니다.');
         setLoading(false);
       }
     } catch (err) {
@@ -153,7 +158,7 @@ function EnrollmentButton({ courseId }: { courseId: string }) {
       alert('결제 준비 중 오류가 발생했습니다.');
       setLoading(false);
     }
-  };
+  }
 
   return (
     <Button
