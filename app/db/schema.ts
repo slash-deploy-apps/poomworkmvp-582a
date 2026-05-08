@@ -467,8 +467,6 @@ export const reviews = sqliteTable(
   ],
 );
 
-// ─── Messages (메시지) ────────────────────────────────────────────────────
-
 export const messages = sqliteTable(
   'messages',
   (d) => ({
@@ -487,6 +485,8 @@ export const messages = sqliteTable(
       .references(() => user.id),
     jobId: d.text({ length: 255 }).references(() => jobs.id),
     content: d.text().notNull(),
+    type: d.text({ length: 20 }).default('text').notNull(), // 'text' | 'proposal' | 'system'
+    metadata: d.text(), // JSON string for proposal/system data
     isRead: d.integer({ mode: 'number' }).default(0).notNull(),
     createdAt: d
       .integer({ mode: 'timestamp' })
@@ -496,8 +496,9 @@ export const messages = sqliteTable(
   (t) => [
     index('messages_sender_id_idx').on(t.senderId),
     index('messages_receiver_id_idx').on(t.receiverId),
+    index('messages_job_id_idx').on(t.jobId),
   ],
-);
+)
 
 // ─── Relations ────────────────────────────────────────────────────────────
 
@@ -660,4 +661,73 @@ export const messagesRelations = relations(messages, ({ one }) => ({
     relationName: 'receiver',
   }),
   job: one(jobs, { fields: [messages.jobId], references: [jobs.id] }),
+}));
+
+
+// ─── Contracts (계약) ─────────────────────────────────────────────────────
+export const contracts = sqliteTable(
+  'contracts',
+  (d) => ({
+    id: d
+      .text({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    applicationId: d
+      .text({ length: 255 })
+      .notNull()
+      .references(() => jobApplications.id),
+    workerId: d
+      .text({ length: 255 })
+      .notNull()
+      .references(() => user.id),
+    clientId: d
+      .text({ length: 255 })
+      .notNull()
+      .references(() => user.id),
+    jobId: d
+      .text({ length: 255 })
+      .notNull()
+      .references(() => jobs.id),
+    amount: d.integer({ mode: 'number' }).notNull(),
+    duration: d.text({ length: 50 }),
+    status: d.text({ length: 30 }).default('proposal_sent').notNull(),
+    workerAgreed: d.integer({ mode: 'boolean' }).default(false),
+    clientAgreed: d.integer({ mode: 'boolean' }).default(false),
+    agreedAt: d.integer({ mode: 'timestamp' }),
+    deliveredAt: d.integer({ mode: 'timestamp' }),
+    deliverableFiles: d.text(), // JSON array of file URLs
+    deliverableText: d.text(),
+    revisionNote: d.text(),
+    createdAt: d
+      .integer({ mode: 'timestamp' })
+      .default(sql`(unixepoch())`)
+      .notNull(),
+    updatedAt: d.integer({ mode: 'timestamp' }).$onUpdate(() => new Date()),
+  }),
+  (t) => [
+    index('contracts_application_id_idx').on(t.applicationId),
+    index('contracts_worker_id_idx').on(t.workerId),
+    index('contracts_client_id_idx').on(t.clientId),
+    index('contracts_job_id_idx').on(t.jobId),
+    index('contracts_status_idx').on(t.status),
+  ],
+)
+
+export const contractsRelations = relations(contracts, ({ one }) => ({
+  application: one(jobApplications, {
+    fields: [contracts.applicationId],
+    references: [jobApplications.id],
+  }),
+  worker: one(user, {
+    fields: [contracts.workerId],
+    references: [user.id],
+    relationName: 'contractWorker',
+  }),
+  client: one(user, {
+    fields: [contracts.clientId],
+    references: [user.id],
+    relationName: 'contractClient',
+  }),
+  job: one(jobs, { fields: [contracts.jobId], references: [jobs.id] }),
 }));

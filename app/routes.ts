@@ -5,6 +5,14 @@ export default [
   route('api/auth/*', 'routes/api.auth.$.ts'),
   route('api/uploadthing', 'routes/api.uploadthing.ts'),
   route('api/upload', 'routes/api.upload.ts'),
+  route('api/contracts', 'routes/api.contracts.ts'),
+  route('api/contracts/:contractId', 'routes/api.contracts.$id.ts'),
+  route('api/contracts/:contractId/agree', 'routes/api.contracts.$id.agree.ts'),
+  route('api/contracts/:contractId/status', 'routes/api.contracts.$id.status.ts'),
+  route('api/contracts/:contractId/deliver', 'routes/api.contracts.$id.deliver.ts'),
+  route('api/contracts/:contractId/confirm', 'routes/api.contracts.$id.confirm.ts'),
+  route('api/contracts/:contractId/reject', 'routes/api.contracts.$id.reject.ts'),
+  route('api/messages/proposal', 'routes/api.messages.proposal.ts'),
 
 
   // Auth
@@ -38,6 +46,11 @@ export default [
 
   // Messages
   route('messages', 'routes/messages.tsx'),
+
+  // Contracts
+  route('contracts/:contractId/agree', 'routes/contracts.$contractId.agree.tsx'),
+  route('contracts/:contractId/deliver', 'routes/contracts.$contractId.deliver.tsx'),
+  route('contracts/:contractId/confirm', 'routes/contracts.$contractId.confirm.tsx'),
 
   // Admin
   route('admin', 'routes/admin.tsx'),

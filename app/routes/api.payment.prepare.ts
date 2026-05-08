@@ -1,7 +1,7 @@
 import { type ActionFunctionArgs } from 'react-router';
 import { eq, and } from 'drizzle-orm';
 import { db } from '~/lib/db.server';
-import { payments, courses } from '~/db/schema';
+import { payments, courses, contracts, jobs } from '~/db/schema';
 import { auth } from '~/lib/auth.server';
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -20,7 +20,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
   }
 
-  let body: { courseId?: string; orderId?: string };
+  let body: { courseId?: string; contractId?: string; orderId?: string };
   try {
     body = await request.json();
   } catch {
@@ -30,26 +30,67 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
   }
 
-  const { courseId, orderId } = body;
-  if (!courseId || !orderId) {
+  const { courseId, contractId, orderId } = body;
+  if ((!courseId && !contractId) || !orderId) {
     return Response.json(
       { success: false, error: 'MISSING_FIELDS' },
       { status: 400 },
     );
   }
 
-  const course = await db.select().from(courses).where(eq(courses.id, courseId)).get();
+  let amount = 0;
+  let payeeId: string | null = null;
+  let referenceId = '';
+  let paymentType: 'course_purchase' | 'job_payment' = 'course_purchase';
 
-  if (!course) {
-    return Response.json(
-      { success: false, error: 'COURSE_NOT_FOUND' },
-      { status: 404 },
-    );
+  if (courseId) {
+    const course = await db.select().from(courses).where(eq(courses.id, courseId)).get();
+    if (!course) {
+      return Response.json(
+        { success: false, error: 'COURSE_NOT_FOUND' },
+        { status: 404 },
+      );
+    }
+    amount = course.price;
+    payeeId = course.instructorId;
+    referenceId = courseId;
+    paymentType = 'course_purchase';
+  } else if (contractId) {
+    const contract = await db.select().from(contracts).where(eq(contracts.id, contractId)).get();
+    if (!contract) {
+      return Response.json(
+        { success: false, error: 'CONTRACT_NOT_FOUND' },
+        { status: 404 },
+      );
+    }
+    if (contract.clientId !== session.user.id) {
+      return Response.json(
+        { success: false, error: 'NOT_CONTRACT_CLIENT' },
+        { status: 403 },
+      );
+    }
+    if (contract.status !== 'contract_signed') {
+      return Response.json(
+        { success: false, error: 'CONTRACT_NOT_SIGNED', message: '계약이 아직 체결되지 않았습니다.' },
+        { status: 400 },
+      );
+    }
+    const job = await db.select().from(jobs).where(eq(jobs.id, contract.jobId)).get();
+    if (!job) {
+      return Response.json(
+        { success: false, error: 'JOB_NOT_FOUND' },
+        { status: 404 },
+      );
+    }
+    amount = contract.amount;
+    payeeId = contract.workerId;
+    referenceId = contractId;
+    paymentType = 'job_payment';
   }
 
   const existingPendingPayment = await db.select().from(payments).where(and(
     eq(payments.payerId, session.user.id),
-    eq(payments.referenceId, courseId),
+    eq(payments.referenceId, referenceId),
     eq(payments.status, 'PENDING'),
   )).get();
 
@@ -62,11 +103,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   await db.insert(payments).values({
     payerId: session.user.id,
-    payeeId: course.instructorId,
-    amount: course.price,
-    type: 'course_purchase',
+    payeeId,
+    amount,
+    type: paymentType,
     status: 'PENDING',
-    referenceId: courseId,
+    referenceId,
     orderId,
   });
 

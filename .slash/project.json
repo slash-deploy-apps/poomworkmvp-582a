@@ -24,10 +24,6 @@
     "provider": "none",
     "status": "not_deployed"
   },
-  "deploy": {
-    "url": "https://poomworkmvp-582a.app.slash.ai.kr",
-    "status": "building"
-  },
   "db": {
     "provider": "turso",
     "name": "poomworkmvp-db",

@@ -92,11 +92,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         );
       }
 
-      const application = await db
+      if (!applicationId) {
+        return Response.json(
+          { success: false, error: 'MISSING_APPLICATION_ID' },
+          { status: 400 },
+        );
+      }
+      const applicationRows = await db
         .select()
         .from(jobApplications)
         .where(eq(jobApplications.id, applicationId))
-        .get();
+        .limit(1);
+      const application = applicationRows[0];
 
       if (!application) {
         return Response.json(

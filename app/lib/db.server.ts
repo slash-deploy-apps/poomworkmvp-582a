@@ -4,6 +4,7 @@ loadDotenv();
 
 import { drizzle as drizzleBetterSqlite3 } from 'drizzle-orm/better-sqlite3';
 import { drizzle as drizzleLibsql } from 'drizzle-orm/libsql';
+import type { LibSQLDatabase } from 'drizzle-orm/libsql';
 import { createClient } from '@libsql/client';
 import Database from 'better-sqlite3';
 
@@ -19,9 +20,7 @@ function isLibsql(url: string): boolean {
   );
 }
 
-let db:
-  | ReturnType<typeof drizzleBetterSqlite3>
-  | ReturnType<typeof drizzleLibsql>;
+let db: LibSQLDatabase<typeof schema>;
 
 if (isLibsql(databaseUrl)) {
   const client = createClient({
@@ -33,7 +32,7 @@ if (isLibsql(databaseUrl)) {
   const sqlite = new Database(databaseUrl);
   sqlite.pragma('journal_mode = WAL');
   sqlite.pragma('foreign_keys = ON');
-  db = drizzleBetterSqlite3(sqlite, { schema });
+  db = drizzleBetterSqlite3(sqlite, { schema }) as unknown as LibSQLDatabase<typeof schema>;
 }
 
 export { db };

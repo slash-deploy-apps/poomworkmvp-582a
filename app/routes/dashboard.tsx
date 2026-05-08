@@ -6,9 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
 import { Badge } from '~/components/ui/badge';
 import { Button } from '~/components/ui/button';
 import { db } from '~/lib/db.server';
-import { jobs, jobApplications, enrollments, courses, user, payments } from '~/db/schema';
+import { jobs, jobApplications, enrollments, courses, user, payments, contracts } from '~/db/schema';
 import { auth } from '~/lib/auth.server';
-import { useState } from 'react';
 
 export const meta: MetaFunction = () => [{ title: '대시보드 - poomwork' }];
 
@@ -20,19 +19,26 @@ export async function loader({ request }: LoaderFunctionArgs) {
     let data: Record<string, any> = { user: u };
 
     if (u.role === 'worker') {
+      // 1. Fetch applications
       const apps = await db.select().from(jobApplications).where(eq(jobApplications.workerId, u.id)).orderBy(desc(jobApplications.createdAt));
+
+      // 2. Fetch job details
       const jobIds = [...new Set(apps.map(a => a.jobId))];
       const jobMap = new Map();
       if (jobIds.length > 0) {
         const jobList = await db.select().from(jobs).where(inArray(jobs.id, jobIds));
         for (const j of jobList) jobMap.set(j.id, j);
       }
+
+      // 3. Fetch client details
       const clientIds = [...new Set(Array.from(jobMap.values()).map((j: any) => j.clientId))];
       const clientMap = new Map();
       if (clientIds.length > 0) {
         const clientList = await db.select().from(user).where(inArray(user.id, clientIds));
         for (const c of clientList) clientMap.set(c.id, c);
       }
+
+      // 4. Merge
       data.applications = apps.map(a => {
         const job = jobMap.get(a.jobId);
         const client = job ? clientMap.get(job.clientId) : null;
@@ -43,6 +49,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
         };
       });
 
+      // 5. Fetch enrollments
       const enrolls = await db.select().from(enrollments).where(eq(enrollments.userId, u.id)).orderBy(desc(enrollments.createdAt));
       const courseIds = [...new Set(enrolls.map(e => e.courseId))];
       const courseMap = new Map();
@@ -70,6 +77,18 @@ export async function loader({ request }: LoaderFunctionArgs) {
         referenceId: payments.referenceId,
         createdAt: payments.createdAt,
       }).from(payments).where(eq(payments.payeeId, u.id)).orderBy(desc(payments.createdAt));
+      // 6. Fetch worker contracts
+      const workerContracts = await db.select().from(contracts).where(eq(contracts.workerId, u.id)).orderBy(desc(contracts.createdAt));
+      const workerJobIds = [...new Set(workerContracts.map(c => c.jobId))];
+      const workerJobMap = new Map();
+      if (workerJobIds.length > 0) {
+        const workerJobList = await db.select().from(jobs).where(inArray(jobs.id, workerJobIds));
+        for (const j of workerJobList) workerJobMap.set(j.id, j);
+      }
+      data.workerContracts = workerContracts.map(c => ({
+        ...c,
+        jobTitle: workerJobMap.get(c.jobId)?.title || '',
+      }));
     }
 
     if (u.role === 'client') {
@@ -108,6 +127,18 @@ export async function loader({ request }: LoaderFunctionArgs) {
         referenceId: payments.referenceId,
         createdAt: payments.createdAt,
       }).from(payments).where(eq(payments.payerId, u.id)).orderBy(desc(payments.createdAt));
+      // 7. Fetch client contracts
+      const clientContracts = await db.select().from(contracts).where(eq(contracts.clientId, u.id)).orderBy(desc(contracts.createdAt));
+      const clientWorkerIds = [...new Set(clientContracts.map(c => c.workerId))];
+      const clientWorkerMap = new Map();
+      if (clientWorkerIds.length > 0) {
+        const clientWorkerList = await db.select().from(user).where(inArray(user.id, clientWorkerIds));
+        for (const w of clientWorkerList) clientWorkerMap.set(w.id, w);
+      }
+      data.clientContracts = clientContracts.map(c => ({
+        ...c,
+        workerName: clientWorkerMap.get(c.workerId)?.name || '',
+      }));
     }
 
     if (u.role === 'admin') {
@@ -124,6 +155,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     return { user: null, error: message };
   }
 }
+
 export async function action({ request }: ActionFunctionArgs) {
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session?.user) return redirect('/login');
@@ -132,7 +164,20 @@ export async function action({ request }: ActionFunctionArgs) {
 
   if (actionType === 'acceptApplication') {
     const appId = formData.get('applicationId') as string;
+    const jobId = formData.get('jobId') as string;
     await db.update(jobApplications).set({ status: 'accepted' }).where(eq(jobApplications.id, appId));
+    const job = await db.select().from(jobs).where(eq(jobs.id, jobId)).limit(1);
+    if (job[0]) {
+      await db.insert(payments).values({
+        payerId: session.user.id,
+        payeeId: formData.get('workerId') as string,
+        amount: Number(formData.get('amount') || 0),
+        type: 'job_payment',
+        status: 'escrow',
+        referenceId: jobId,
+        paymentMethod: 'card',
+      });
+    }
   } else if (actionType === 'rejectApplication') {
     const appId = formData.get('applicationId') as string;
     await db.update(jobApplications).set({ status: 'rejected' }).where(eq(jobApplications.id, appId));
@@ -145,56 +190,10 @@ export async function action({ request }: ActionFunctionArgs) {
   }
   return redirect('/dashboard');
 }
+
 export default function Dashboard() {
   const data = useLoaderData<typeof loader>();
   const u = data.user as any;
-  const [payingAppId, setPayingAppId] = useState<string | null>(null);
-
-  const handleAcceptAndPay = async (a: any, j: any) => {
-    setPayingAppId(a.id);
-    try {
-      const orderId = crypto.randomUUID();
-      const res = await fetch('/api/payment/prepare', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobId: j.id, applicationId: a.id, orderId }),
-      });
-      const data = await res.json();
-
-      if (!data.success) {
-        alert(data.message || '결제 준비에 실패했습니다.');
-        setPayingAppId(null);
-        return;
-      }
-
-      const nice = (window as any).AUTHNICE;
-      if (!nice) {
-        alert('결제 모듈을 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
-        setPayingAppId(null);
-        return;
-      }
-
-      const returnUrl = `${window.location.origin}/payment/success`;
-
-      nice.requestPay({
-        clientId: 'R2_770a929902ef484eb91d6c43688e80c1',
-        method: 'card',
-        orderId: orderId,
-        amount: a.proposedBudget || j.budgetMin || 0,
-        goodsName: j.title,
-        returnUrl: returnUrl,
-        fnError: function(result: any) {
-          console.error('NicePay error:', result);
-          alert('결제 오류: ' + (result.errorMsg || '알 수 없는 오류'));
-          setPayingAppId(null);
-        }
-      });
-    } catch (err) {
-      console.error('Payment error:', err);
-      alert('결제 준비 중 오류가 발생했습니다.');
-      setPayingAppId(null);
-    }
-  };
 
   if (data.error) {
     return (
@@ -240,6 +239,89 @@ export default function Dashboard() {
 
       {u.role === 'worker' && (
         <>
+          {/* Start Work Banner */}
+          {(() => {
+            const inProgressContracts = (data.workerContracts as any[])?.filter((c: any) => c.status === 'in_progress') || [];
+            if (inProgressContracts.length === 0) return null;
+            return (
+              <Card className='mb-8 bg-gradient-to-r from-[#7C3AED] to-[#A78BFA] text-white border-none'>
+                <CardContent className='p-6'>
+                  <div className='flex items-center justify-between'>
+                    <div>
+                      <h3 className='text-lg font-bold mb-1'>일이 시작되었습니다!</h3>
+                      <p className='text-white/90 text-sm'>{inProgressContracts.length}건의 진행중인 계약이 있습니다. 결과물을 준비해 주세요.</p>
+                    </div>
+                    <Link to={`/contracts/${inProgressContracts[0].id}/deliver`}>
+                      <Button size='sm' className='bg-white text-[#7C3AED] hover:bg-white/90 rounded-[20px] active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200 font-bold'>결과물 전달하기</Button>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
+          {/* Worker Contract Status */}
+          {(data.workerContracts as any[])?.length > 0 && (
+            <Card className='mb-8'>
+              <CardHeader><CardTitle>내 계약 현황</CardTitle></CardHeader>
+              <CardContent>
+                <div className='space-y-3'>
+                  {(data.workerContracts as any[])?.map((c: any) => {
+                    const statusLabels: Record<string, string> = {
+                      proposal_sent: '제안중',
+                      contract_pending: '동의 대기',
+                      contract_signed: '계약 체결',
+                      paid: '결제 완료',
+                      in_progress: '진행중',
+                      delivered: '결과물 전달',
+                      completed: '완료',
+                      revision_requested: '재작업 요청',
+                    };
+                    const statusColors: Record<string, string> = {
+                      proposal_sent: 'bg-yellow-100 text-yellow-700',
+                      contract_pending: 'bg-yellow-100 text-yellow-700',
+                      contract_signed: 'bg-blue-100 text-blue-700',
+                      paid: 'bg-green-100 text-green-700',
+                      in_progress: 'bg-green-100 text-green-700',
+                      delivered: 'bg-[#EDE9FE] text-[#332F3A]',
+                      completed: 'bg-[#EDE9FE] text-[#332F3A]',
+                      revision_requested: 'bg-orange-100 text-orange-700',
+                    };
+                    return (
+                      <div key={c.id} className='flex items-center justify-between p-4 bg-[#EDE9FE] rounded-[32px]'>
+                        <div>
+                          <div className='font-medium'>{c.jobTitle || '일거리'}</div>
+                          <div className='text-sm text-[#635F69]'>{new Intl.NumberFormat('ko-KR').format(c.amount)}원{c.duration ? ` · ${c.duration}` : ''}</div>
+                        </div>
+                        <div className='flex items-center gap-2'>
+                          <Badge className={statusColors[c.status] || 'bg-gray-100 text-gray-700'}>
+                            {statusLabels[c.status] || c.status}
+                          </Badge>
+                          {c.status === 'contract_signed' && (
+                            <Link to={`/contracts/${c.id}/agree`}>
+                              <Button size='sm' className='bg-[#7C3AED] hover:bg-[#5a3d95] rounded-[20px] active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200'>계약 보기</Button>
+                            </Link>
+                          )}
+                          {(c.status === 'paid' || c.status === 'in_progress') && (
+                            <Link to={`/contracts/${c.id}/deliver`}>
+                              <Button size='sm' className='bg-[#7C3AED] hover:bg-[#5a3d95] rounded-[20px] active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200'>결과물 전달</Button>
+                            </Link>
+                          )}
+                          {c.status === 'delivered' && (
+                            <Badge className='bg-[#EDE9FE] text-[#332F3A]'>컨펌 대기중</Badge>
+                          )}
+                          {c.status === 'revision_requested' && (
+                            <Link to={`/contracts/${c.id}/deliver`}>
+                              <Button size='sm' className='bg-orange-500 hover:bg-orange-600 rounded-[20px] active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200'>결과물 전달</Button>
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
           <Card className='mb-8'>
             <CardHeader><CardTitle>내 지원 현황</CardTitle></CardHeader>
             <CardContent>
@@ -302,6 +384,67 @@ export default function Dashboard() {
 
       {u.role === 'client' && (
         <>
+          {/* Client Contract Status */}
+          {(data.clientContracts as any[])?.length > 0 && (
+            <Card className='mb-8'>
+              <CardHeader><CardTitle>내 계약 현황</CardTitle></CardHeader>
+              <CardContent>
+                <div className='space-y-3'>
+                  {(data.clientContracts as any[])?.map((c: any) => {
+                    const statusLabels: Record<string, string> = {
+                      proposal_sent: '제안중',
+                      contract_pending: '동의 대기',
+                      contract_signed: '계약 체결',
+                      paid: '결제 완료',
+                      in_progress: '진행중',
+                      delivered: '결과물 전달',
+                      completed: '완료',
+                      revision_requested: '재작업 요청',
+                    };
+                    const statusColors: Record<string, string> = {
+                      proposal_sent: 'bg-yellow-100 text-yellow-700',
+                      contract_pending: 'bg-yellow-100 text-yellow-700',
+                      contract_signed: 'bg-blue-100 text-blue-700',
+                      paid: 'bg-green-100 text-green-700',
+                      in_progress: 'bg-green-100 text-green-700',
+                      delivered: 'bg-[#EDE9FE] text-[#332F3A]',
+                      completed: 'bg-[#EDE9FE] text-[#332F3A]',
+                      revision_requested: 'bg-orange-100 text-orange-700',
+                    };
+                    return (
+                      <div key={c.id} className='flex items-center justify-between p-4 bg-[#EDE9FE] rounded-[32px]'>
+                        <div>
+                          <div className='font-medium'>{c.workerName || '-worker'}</div>
+                          <div className='text-sm text-[#635F69]'>{new Intl.NumberFormat('ko-KR').format(c.amount)}원{c.duration ? ` · ${c.duration}` : ''}</div>
+                        </div>
+                        <div className='flex items-center gap-2'>
+                          <Badge className={statusColors[c.status] || 'bg-gray-100 text-gray-700'}>
+                            {statusLabels[c.status] || c.status}
+                          </Badge>
+                          {(c.status === 'contract_pending' || c.status === 'proposal_sent') && (
+                            <Link to={`/contracts/${c.id}/agree`}>
+                              <Button size='sm' className='bg-[#7C3AED] hover:bg-[#5a3d95] rounded-[20px] active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200'>계약 동의</Button>
+                            </Link>
+                          )}
+                          {c.status === 'contract_signed' && (
+                            <Button size='sm' className='bg-[#7C3AED] hover:bg-[#5a3d95] rounded-[20px] active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200' onClick={() => window.location.href = `/contracts/${c.id}/agree`}>결제하기</Button>
+                          )}
+                          {c.status === 'delivered' && (
+                            <Link to={`/contracts/${c.id}/confirm`}>
+                              <Button size='sm' className='bg-[#7C3AED] hover:bg-[#5a3d95] rounded-[20px] active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200'>결과물 확인</Button>
+                            </Link>
+                          )}
+                          {c.status === 'revision_requested' && (
+                            <Badge className='bg-orange-100 text-orange-700'>재작업 대기중</Badge>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
           <div className='flex justify-between items-center mb-6'>
             <h2 className='text-xl font-bold'>내 강좌</h2>
             <Button asChild className='bg-[#7C3AED] rounded-[20px] hover:bg-#7C3AED active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200'><Link to='/courses/new'><GraduationCap className='h-4 w-4 mr-2' />새 강좌 만들기</Link></Button>
@@ -364,14 +507,14 @@ export default function Dashboard() {
                             {a.proposedDuration && <div className='text-sm text-[#635F69]'>예상 기간: {a.proposedDuration}</div>}
                             {a.status === 'pending' && (
                               <div className='flex gap-2 mt-3'>
-                                <Button
-                                  size='sm'
-                                  className='bg-[#7C3AED] hover:bg-[#5a3d95] rounded-[20px] active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200'
-                                  disabled={payingAppId === a.id}
-                                  onClick={() => handleAcceptAndPay(a, j)}
-                                >
-                                  {payingAppId === a.id ? '결제 중...' : '수락 및 결제'}
-                                </Button>
+                                <form method='post'>
+                                  <input type='hidden' name='_action' value='acceptApplication' />
+                                  <input type='hidden' name='applicationId' value={a.id} />
+                                  <input type='hidden' name='jobId' value={j.id} />
+                                  <input type='hidden' name='workerId' value={a.workerId || ''} />
+                                  <input type='hidden' name='amount' value={a.proposedBudget || j.budgetMin || 0} />
+                                  <Button type='submit' size='sm' className='bg-[#7C3AED] hover:bg-#7C3AED rounded-[20px] active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200'>수락</Button>
+                                </form>
                                 <form method='post'>
                                   <input type='hidden' name='_action' value='rejectApplication' />
                                   <input type='hidden' name='applicationId' value={a.id} />

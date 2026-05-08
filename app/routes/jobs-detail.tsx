@@ -11,7 +11,7 @@ import { Badge } from '~/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '~/components/ui/dialog';
 import { StarRating } from '~/components/ui/star-rating';
 import { db } from '~/lib/db.server';
-import { jobs, user, jobApplications, categories, reviews } from '~/db/schema';
+import { jobs, user, jobApplications, categories, reviews, contracts } from '~/db/schema';
 import { auth } from '~/lib/auth.server';
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
@@ -43,7 +43,24 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
   }
   const reviewList = await db.select({ id: reviews.id, rating: reviews.rating, comment: reviews.comment, createdAt: reviews.createdAt, reviewerName: user.name, reviewerImage: user.image, reviewerId: reviews.reviewerId })
     .from(reviews).leftJoin(user, eq(reviews.reviewerId, user.id)).where(eq(reviews.jobId, params.jobId!)).orderBy(desc(reviews.createdAt));
-  return { job: job[0], client: client[0] || null, category: category[0] || null, user: session?.user ?? null, hasApplied, reviews: reviewList, applications };
+
+  let activeContract: any = null;
+  if (session?.user) {
+    const contractQuery = await db.select().from(contracts)
+      .where(
+        and(
+          eq(contracts.jobId, params.jobId!),
+          session.user.role === 'worker'
+            ? eq(contracts.workerId, session.user.id)
+            : eq(contracts.clientId, session.user.id)
+        )
+      )
+      .orderBy(desc(contracts.createdAt))
+      .limit(1);
+    activeContract = contractQuery[0] || null;
+  }
+
+  return { job: job[0], client: client[0] || null, category: category[0] || null, user: session?.user ?? null, hasApplied, reviews: reviewList, applications, activeContract };
 }
 
 export async function action({ request, params }: ActionFunctionArgs) {
@@ -92,7 +109,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 export const meta: MetaFunction<typeof loader> = ({ data }) => [{ title: `${data?.job.title || '일거리'} - poomwork` }];
 
 export default function JobDetail() {
-  const { job, client, category, user: currentUser, hasApplied, reviews: reviewList, applications } = useLoaderData<typeof loader>();
+  const { job, client, category, user: currentUser, hasApplied, reviews: reviewList, applications, activeContract } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const [reviewRating, setReviewRating] = useState(0);
   const [showApplyForm, setShowApplyForm] = useState(false);
@@ -283,7 +300,19 @@ export default function JobDetail() {
               </div>
             </div>
           )}
-
+          {activeContract && (
+            <div className='bg-gradient-to-r from-[#7C3AED] to-[#A78BFA] rounded-[32px] p-5 mb-6 text-white'>
+              <div className='flex items-center justify-between'>
+                <div>
+                  <p className='font-bold text-lg'>계약 진행중</p>
+                  <p className='text-white/90 text-sm mt-1'>이 일거리에 대한 계약이 진행중입니다.</p>
+                </div>
+                <Link to={`/contracts/${activeContract.id}/agree`}>
+                  <Button size='sm' className='bg-white text-[#7C3AED] hover:bg-white/90 rounded-[20px] font-bold active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200'>계약 보기</Button>
+                </Link>
+              </div>
+            </div>
+          )}
           {currentUser && currentUser.role === 'worker' && hasApplied && (
             <div className='bg-[#EDE9FE] rounded-[32px] p-4 text-center'>
               <p className='text-[#332F3A] font-medium'>이미 지원하셨습니다</p>

@@ -1,8 +1,9 @@
 import { type ActionFunctionArgs, redirect, Link } from 'react-router';
 import { useSearchParams } from 'react-router';
-import { eq, sql, and } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { db } from '~/lib/db.server';
-import { payments, enrollments, courses, jobApplications, jobs } from '~/db/schema';
+import { payments, enrollments, courses, contracts, jobApplications } from '~/db/schema';
+import { auth } from '~/lib/auth.server';
 import { approvePayment } from '~/lib/nicepay.server';
 import { CheckCircle2, XCircle, ArrowLeft } from 'lucide-react';
 import { Button } from '~/components/ui/button';
@@ -38,10 +39,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (payment.status === 'DONE') {
-    if (payment.type === 'job_payment') {
-      return redirect('/dashboard');
-    }
     return redirect('/my/courses');
+  }
+
+  if (payment.status === 'escrow') {
+    return redirect('/dashboard');
   }
 
   if (payment.amount !== amount) {
@@ -63,8 +65,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return redirect(`/payment/fail?error=PAYMENT_NOT_COMPLETED&message=${encodeURIComponent(result.resultMsg || '')}`);
   }
 
-  // Use payment.payerId as fallback since session may not be available from iframe returnUrl
-  const userId = payment.payerId;
+  const session = await auth.api.getSession({ headers: request.headers });
+
+  if (payment.type === 'job_payment') {
+    await db.update(payments).set({
+      status: 'escrow',
+      paymentKey: tid,
+      tossPaymentMethod: result.payMethod || null,
+      approvedAt: result.paidAt ? new Date(result.paidAt) : new Date(),
+    }).where(eq(payments.id, payment.id));
+
+    await db.update(contracts)
+      .set({ status: 'in_progress', updatedAt: new Date() })
+      .where(eq(contracts.id, payment.referenceId!));
+
+    const contract = await db.select().from(contracts).where(eq(contracts.id, payment.referenceId!)).get();
+    if (contract) {
+      await db.update(jobApplications)
+        .set({ status: 'accepted', updatedAt: new Date() })
+        .where(eq(jobApplications.id, contract.applicationId));
+    }
+
+    return redirect('/dashboard');
+  }
 
   await db.update(payments).set({
     status: 'DONE',
@@ -73,9 +96,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     approvedAt: result.paidAt ? new Date(result.paidAt) : new Date(),
   }).where(eq(payments.id, payment.id));
 
-  if (payment.type === 'course_purchase') {
+  if (session?.user?.id) {
     await db.insert(enrollments).values({
-      userId,
+      userId: session.user.id,
       courseId: payment.referenceId!,
       progress: 0,
     });
@@ -83,32 +106,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     await db.update(courses)
       .set({ enrollmentCount: sql`${courses.enrollmentCount} + 1` })
       .where(eq(courses.id, payment.referenceId!));
-  } else if (payment.type === 'job_payment') {
-    // Find the pending application for this job and worker
-    const application = await db.select()
-      .from(jobApplications)
-      .where(
-        and(
-          eq(jobApplications.jobId, payment.referenceId!),
-          eq(jobApplications.workerId, payment.payeeId!),
-        ),
-      )
-      .get();
-
-    if (application) {
-      await db.update(jobApplications)
-        .set({ status: 'accepted' })
-        .where(eq(jobApplications.id, application.id));
-    }
-
-    await db.update(jobs)
-      .set({ status: 'in_progress' })
-      .where(eq(jobs.id, payment.referenceId!));
   }
 
-  if (payment.type === 'job_payment') {
-    return redirect('/dashboard');
-  }
   return redirect('/payment/success?status=done');
 };
 
