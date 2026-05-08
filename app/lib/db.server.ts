@@ -10,7 +10,7 @@ import Database from 'better-sqlite3';
 
 import * as schema from '~/db/schema';
 
-const databaseUrl = process.env.DATABASE_URL ?? 'sqlite.db';
+const databaseUrl = process.env.NODE_ENV === 'production' ? (process.env.DATABASE_URL ?? 'sqlite.db') : '/home/user/projects/poomworkmvp/sqlite.db';
 
 function isLibsql(url: string): boolean {
   return (
