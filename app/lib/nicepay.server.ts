@@ -217,6 +217,50 @@ export async function cancelTransaction(
     };
   }
 }
+export async function approvePayment(
+  tid: string,
+  amount: number,
+  authToken: string,
+): Promise<
+  | { success: true; data: NicepayTransactionResponse }
+  | { success: false; error: ApiError }
+> {
+  try {
+    const response = await fetch(
+      `${NICEPAY_API_BASE}/v1/payments/${tid}`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: getBasicAuthHeader(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ amount, authToken }),
+      },
+    );
+
+    if (!response.ok) {
+      const text = await response.text();
+      let errorData: ApiError;
+      try {
+        errorData = JSON.parse(text);
+      } catch {
+        errorData = { code: 'HTTP_ERROR', message: `HTTP ${response.status}: ${text.slice(0, 200)}` };
+      }
+      return { success: false, error: errorData };
+    }
+
+    const data = (await response.json()) as NicepayTransactionResponse;
+    return { success: true, data };
+  } catch (err) {
+    return {
+      success: false,
+      error: {
+        code: 'NETWORK_ERROR',
+        message: err instanceof Error ? err.message : 'Network request failed',
+      },
+    };
+  }
+}
 
 export function verifySignature(
   tid: string,

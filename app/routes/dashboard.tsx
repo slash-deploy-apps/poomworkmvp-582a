@@ -8,6 +8,7 @@ import { Button } from '~/components/ui/button';
 import { db } from '~/lib/db.server';
 import { jobs, jobApplications, enrollments, courses, user, payments } from '~/db/schema';
 import { auth } from '~/lib/auth.server';
+import { useState } from 'react';
 
 export const meta: MetaFunction = () => [{ title: '대시보드 - poomwork' }];
 
@@ -19,26 +20,19 @@ export async function loader({ request }: LoaderFunctionArgs) {
     let data: Record<string, any> = { user: u };
 
     if (u.role === 'worker') {
-      // 1. Fetch applications
       const apps = await db.select().from(jobApplications).where(eq(jobApplications.workerId, u.id)).orderBy(desc(jobApplications.createdAt));
-
-      // 2. Fetch job details
       const jobIds = [...new Set(apps.map(a => a.jobId))];
       const jobMap = new Map();
       if (jobIds.length > 0) {
         const jobList = await db.select().from(jobs).where(inArray(jobs.id, jobIds));
         for (const j of jobList) jobMap.set(j.id, j);
       }
-
-      // 3. Fetch client details
       const clientIds = [...new Set(Array.from(jobMap.values()).map((j: any) => j.clientId))];
       const clientMap = new Map();
       if (clientIds.length > 0) {
         const clientList = await db.select().from(user).where(inArray(user.id, clientIds));
         for (const c of clientList) clientMap.set(c.id, c);
       }
-
-      // 4. Merge
       data.applications = apps.map(a => {
         const job = jobMap.get(a.jobId);
         const client = job ? clientMap.get(job.clientId) : null;
@@ -49,7 +43,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
         };
       });
 
-      // 5. Fetch enrollments
       const enrolls = await db.select().from(enrollments).where(eq(enrollments.userId, u.id)).orderBy(desc(enrollments.createdAt));
       const courseIds = [...new Set(enrolls.map(e => e.courseId))];
       const courseMap = new Map();
@@ -131,7 +124,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
     return { user: null, error: message };
   }
 }
-
 export async function action({ request }: ActionFunctionArgs) {
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session?.user) return redirect('/login');
@@ -140,20 +132,7 @@ export async function action({ request }: ActionFunctionArgs) {
 
   if (actionType === 'acceptApplication') {
     const appId = formData.get('applicationId') as string;
-    const jobId = formData.get('jobId') as string;
     await db.update(jobApplications).set({ status: 'accepted' }).where(eq(jobApplications.id, appId));
-    const job = await db.select().from(jobs).where(eq(jobs.id, jobId)).limit(1);
-    if (job[0]) {
-      await db.insert(payments).values({
-        payerId: session.user.id,
-        payeeId: formData.get('workerId') as string,
-        amount: Number(formData.get('amount') || 0),
-        type: 'job_payment',
-        status: 'escrow',
-        referenceId: jobId,
-        paymentMethod: 'card',
-      });
-    }
   } else if (actionType === 'rejectApplication') {
     const appId = formData.get('applicationId') as string;
     await db.update(jobApplications).set({ status: 'rejected' }).where(eq(jobApplications.id, appId));
@@ -166,10 +145,56 @@ export async function action({ request }: ActionFunctionArgs) {
   }
   return redirect('/dashboard');
 }
-
 export default function Dashboard() {
   const data = useLoaderData<typeof loader>();
   const u = data.user as any;
+  const [payingAppId, setPayingAppId] = useState<string | null>(null);
+
+  const handleAcceptAndPay = async (a: any, j: any) => {
+    setPayingAppId(a.id);
+    try {
+      const orderId = crypto.randomUUID();
+      const res = await fetch('/api/payment/prepare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId: j.id, applicationId: a.id, orderId }),
+      });
+      const data = await res.json();
+
+      if (!data.success) {
+        alert(data.message || '결제 준비에 실패했습니다.');
+        setPayingAppId(null);
+        return;
+      }
+
+      const nice = (window as any).AUTHNICE;
+      if (!nice) {
+        alert('결제 모듈을 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
+        setPayingAppId(null);
+        return;
+      }
+
+      const returnUrl = `${window.location.origin}/payment/success`;
+
+      nice.requestPay({
+        clientId: 'R2_770a929902ef484eb91d6c43688e80c1',
+        method: 'card',
+        orderId: orderId,
+        amount: a.proposedBudget || j.budgetMin || 0,
+        goodsName: j.title,
+        returnUrl: returnUrl,
+        fnError: function(result: any) {
+          console.error('NicePay error:', result);
+          alert('결제 오류: ' + (result.errorMsg || '알 수 없는 오류'));
+          setPayingAppId(null);
+        }
+      });
+    } catch (err) {
+      console.error('Payment error:', err);
+      alert('결제 준비 중 오류가 발생했습니다.');
+      setPayingAppId(null);
+    }
+  };
 
   if (data.error) {
     return (
@@ -339,14 +364,14 @@ export default function Dashboard() {
                             {a.proposedDuration && <div className='text-sm text-[#635F69]'>예상 기간: {a.proposedDuration}</div>}
                             {a.status === 'pending' && (
                               <div className='flex gap-2 mt-3'>
-                                <form method='post'>
-                                  <input type='hidden' name='_action' value='acceptApplication' />
-                                  <input type='hidden' name='applicationId' value={a.id} />
-                                  <input type='hidden' name='jobId' value={j.id} />
-                                  <input type='hidden' name='workerId' value={a.workerId || ''} />
-                                  <input type='hidden' name='amount' value={a.proposedBudget || j.budgetMin || 0} />
-                                  <Button type='submit' size='sm' className='bg-[#7C3AED] hover:bg-#7C3AED rounded-[20px] active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200'>수락</Button>
-                                </form>
+                                <Button
+                                  size='sm'
+                                  className='bg-[#7C3AED] hover:bg-[#5a3d95] rounded-[20px] active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200'
+                                  disabled={payingAppId === a.id}
+                                  onClick={() => handleAcceptAndPay(a, j)}
+                                >
+                                  {payingAppId === a.id ? '결제 중...' : '수락 및 결제'}
+                                </Button>
                                 <form method='post'>
                                   <input type='hidden' name='_action' value='rejectApplication' />
                                   <input type='hidden' name='applicationId' value={a.id} />

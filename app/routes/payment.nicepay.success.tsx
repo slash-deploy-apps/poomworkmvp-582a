@@ -1,10 +1,9 @@
 import { type ActionFunctionArgs, redirect, Link } from 'react-router';
 import { useSearchParams } from 'react-router';
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql, and } from 'drizzle-orm';
 import { db } from '~/lib/db.server';
-import { payments, enrollments, courses } from '~/db/schema';
-import { auth } from '~/lib/auth.server';
-import { getTransaction, verifySignature } from '~/lib/nicepay.server';
+import { payments, enrollments, courses, jobApplications, jobs } from '~/db/schema';
+import { approvePayment } from '~/lib/nicepay.server';
 import { CheckCircle2, XCircle, ArrowLeft } from 'lucide-react';
 import { Button } from '~/components/ui/button';
 
@@ -14,18 +13,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   const formData = await request.formData();
-  const resultCode = formData.get('resultCode') as string;
-  const resultMsg = formData.get('resultMsg') as string;
-  const sessionId = formData.get('sessionId') as string;
+  
+  // JS SDK sends authResultCode (not resultCode)
+  const authResultCode = formData.get('authResultCode') as string;
+  const authResultMsg = formData.get('authResultMsg') as string;
+  const tid = formData.get('tid') as string;
   const orderId = formData.get('orderId') as string;
   const amount = Number(formData.get('amount'));
+  const authToken = formData.get('authToken') as string;
 
-  if (!sessionId || !orderId || !amount) {
+  if (!tid || !orderId || !amount || !authToken) {
     return redirect('/payment/fail?error=MISSING_FIELDS');
   }
 
-  if (resultCode !== '0000') {
-    return redirect(`/payment/fail?resultCode=${resultCode}&resultMsg=${encodeURIComponent(resultMsg || '')}&orderId=${orderId}`);
+  // Step 1: Check authentication result
+  if (authResultCode !== '0000') {
+    return redirect(`/payment/fail?resultCode=${authResultCode}&resultMsg=${encodeURIComponent(authResultMsg || '')}&orderId=${orderId}`);
   }
 
   const payment = await db.select().from(payments).where(eq(payments.orderId, orderId)).get();
@@ -35,6 +38,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (payment.status === 'DONE') {
+    if (payment.type === 'job_payment') {
+      return redirect('/dashboard');
+    }
     return redirect('/my/courses');
   }
 
@@ -42,43 +48,34 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return redirect('/payment/fail?error=AMOUNT_MISMATCH');
   }
 
-  const txResult = await getTransaction(sessionId);
+  // Step 2: Call approval API (this is the key missing step!)
+  const approvalResult = await approvePayment(tid, amount, authToken);
 
-  if (!txResult.success) {
+  if (!approvalResult.success) {
     await db.update(payments).set({ status: 'FAILED' }).where(eq(payments.id, payment.id));
-    return redirect(`/payment/fail?error=TRANSACTION_RETRIEVAL_FAILED&message=${encodeURIComponent(txResult.error.message)}`);
+    return redirect(`/payment/fail?error=APPROVAL_FAILED&message=${encodeURIComponent(approvalResult.error.message)}`);
   }
 
-  const tx = txResult.data;
+  const result = approvalResult.data;
 
-  if (tx.resultCode !== '0000' || tx.status !== 'paid') {
+  if (result.resultCode !== '0000' || result.status !== 'paid') {
     await db.update(payments).set({ status: 'FAILED' }).where(eq(payments.id, payment.id));
-    return redirect(`/payment/fail?error=PAYMENT_NOT_COMPLETED&message=${encodeURIComponent(tx.resultMsg || '')}`);
+    return redirect(`/payment/fail?error=PAYMENT_NOT_COMPLETED&message=${encodeURIComponent(result.resultMsg || '')}`);
   }
 
-  if (tx.amount !== amount) {
-    return redirect('/payment/fail?error=AMOUNT_MISMATCH');
-  }
-
-  if (tx.tid && tx.signature && tx.ediDate) {
-    const sigValid = verifySignature(tx.tid, tx.amount, tx.ediDate, tx.signature);
-    if (!sigValid) {
-      return redirect('/payment/fail?error=SIGNATURE_VERIFICATION_FAILED');
-    }
-  }
-
-  const session = await auth.api.getSession({ headers: request.headers });
+  // Use payment.payerId as fallback since session may not be available from iframe returnUrl
+  const userId = payment.payerId;
 
   await db.update(payments).set({
     status: 'DONE',
-    paymentKey: tx.tid || null,
-    tossPaymentMethod: tx.payMethod || null,
-    approvedAt: tx.paidAt ? new Date(tx.paidAt) : new Date(),
+    paymentKey: tid,
+    tossPaymentMethod: result.payMethod || null,
+    approvedAt: result.paidAt ? new Date(result.paidAt) : new Date(),
   }).where(eq(payments.id, payment.id));
 
-  if (session?.user?.id) {
+  if (payment.type === 'course_purchase') {
     await db.insert(enrollments).values({
-      userId: session.user.id,
+      userId,
       courseId: payment.referenceId!,
       progress: 0,
     });
@@ -86,8 +83,32 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     await db.update(courses)
       .set({ enrollmentCount: sql`${courses.enrollmentCount} + 1` })
       .where(eq(courses.id, payment.referenceId!));
+  } else if (payment.type === 'job_payment') {
+    // Find the pending application for this job and worker
+    const application = await db.select()
+      .from(jobApplications)
+      .where(
+        and(
+          eq(jobApplications.jobId, payment.referenceId!),
+          eq(jobApplications.workerId, payment.payeeId!),
+        ),
+      )
+      .get();
+
+    if (application) {
+      await db.update(jobApplications)
+        .set({ status: 'accepted' })
+        .where(eq(jobApplications.id, application.id));
+    }
+
+    await db.update(jobs)
+      .set({ status: 'in_progress' })
+      .where(eq(jobs.id, payment.referenceId!));
   }
 
+  if (payment.type === 'job_payment') {
+    return redirect('/dashboard');
+  }
   return redirect('/payment/success?status=done');
 };
 
