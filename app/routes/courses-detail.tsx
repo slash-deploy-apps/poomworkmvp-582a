@@ -385,7 +385,7 @@ export default function CourseDetail() {
   );
 }
 
-function LessonItem({ lesson }: { lesson: { id: string; title: string; videoUrl: string | null; duration: number; isFree: number } }) {
+function LessonItem({ lesson }: { lesson: { id: string; title: string; videoUrl: string | null; duration: number; isFree: boolean } }) {
   const [editOpen, setEditOpen] = useState(false);
   return (
     <div className='flex items-center gap-2 bg-[#EDE9FE] rounded-[16px] p-3'>
@@ -405,7 +405,7 @@ function LessonItem({ lesson }: { lesson: { id: string; title: string; videoUrl:
             <div><label className='text-sm font-medium'>레슨 제목</label><Input name="title" defaultValue={lesson.title} className="mt-1 rounded-[16px]" required /></div>
             <div><label className='text-sm font-medium'>유튜브 링크</label><Input name="videoUrl" defaultValue={lesson.videoUrl || ''} placeholder='https://youtube.com/...' className="mt-1 rounded-[16px]" /></div>
             <div><label className='text-sm font-medium'>예상 시간 (분)</label><Input name="durationMin" type="number" defaultValue={Math.round(lesson.duration / 60)} min='1' className="mt-1 rounded-[16px]" required /></div>
-            <div className='flex items-center gap-2'><Input type='checkbox' name='isFree' defaultChecked={!!lesson.isFree} className='w-4 h-4' /><label className='text-sm'>맛보기 레슨</label></div>
+            <div className='flex items-center gap-2'><Input type='checkbox' name='isFree' defaultChecked={lesson.isFree} className='w-4 h-4' /><label className='text-sm'>맛보기 레슨</label></div>
             <Button type='submit' className='w-full bg-[#7C3AED] hover:bg-[#5a3d95] rounded-[16px]' onClick={() => setEditOpen(false)}>저장</Button>
           </form>
         </DialogContent>

@@ -1,7 +1,7 @@
 import { type ActionFunctionArgs } from 'react-router';
 import { eq, and } from 'drizzle-orm';
 import { db } from '~/lib/db.server';
-import { payments, courses, jobs, jobApplications } from '~/db/schema';
+import { payments, courses } from '~/db/schema';
 import { auth } from '~/lib/auth.server';
 import { createCheckout } from '~/lib/nicepay.server';
 
@@ -22,7 +22,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       );
     }
 
-    let body: { courseId?: string; jobId?: string; applicationId?: string; orderId?: string };
+    let body: { courseId?: string; orderId?: string };
     try {
       body = await request.json();
     } catch {
@@ -32,98 +32,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       );
     }
 
-    const { courseId, jobId, applicationId, orderId } = body;
-    if ((!courseId && !jobId) || !orderId) {
+    const { courseId, orderId } = body;
+    if (!courseId || !orderId) {
       return Response.json(
         { success: false, error: 'MISSING_FIELDS' },
         { status: 400 },
       );
     }
-    if (jobId && !applicationId) {
+
+    const course = await db
+      .select()
+      .from(courses)
+      .where(eq(courses.id, courseId))
+      .get();
+
+    if (!course) {
       return Response.json(
-        { success: false, error: 'MISSING_APPLICATION_ID' },
-        { status: 400 },
+        { success: false, error: 'COURSE_NOT_FOUND' },
+        { status: 404 },
       );
-    }
-
-    let amount = 0;
-    let goodsName = '';
-    let payeeId: string | null = null;
-    let referenceId = '';
-    let paymentType: 'course_purchase' | 'job_payment' = 'course_purchase';
-
-    if (courseId) {
-      const course = await db
-        .select()
-        .from(courses)
-        .where(eq(courses.id, courseId))
-        .get();
-
-      if (!course) {
-        return Response.json(
-          { success: false, error: 'COURSE_NOT_FOUND' },
-          { status: 404 },
-        );
-      }
-
-      amount = course.price;
-      goodsName = course.title;
-      payeeId = course.instructorId;
-      referenceId = courseId;
-      paymentType = 'course_purchase';
-    } else if (jobId) {
-      const job = await db
-        .select()
-        .from(jobs)
-        .where(eq(jobs.id, jobId))
-        .get();
-
-      if (!job) {
-        return Response.json(
-          { success: false, error: 'JOB_NOT_FOUND' },
-          { status: 404 },
-        );
-      }
-
-      if (job.clientId !== session.user.id) {
-        return Response.json(
-          { success: false, error: 'NOT_JOB_OWNER' },
-          { status: 403 },
-        );
-      }
-
-      if (!applicationId) {
-        return Response.json(
-          { success: false, error: 'MISSING_APPLICATION_ID' },
-          { status: 400 },
-        );
-      }
-      const applicationRows = await db
-        .select()
-        .from(jobApplications)
-        .where(eq(jobApplications.id, applicationId))
-        .limit(1);
-      const application = applicationRows[0];
-
-      if (!application) {
-        return Response.json(
-          { success: false, error: 'APPLICATION_NOT_FOUND' },
-          { status: 404 },
-        );
-      }
-
-      if (application.jobId !== jobId) {
-        return Response.json(
-          { success: false, error: 'APPLICATION_JOB_MISMATCH' },
-          { status: 400 },
-        );
-      }
-
-      amount = application.proposedBudget || job.budgetMin || 0;
-      goodsName = job.title;
-      payeeId = application.workerId;
-      referenceId = jobId;
-      paymentType = 'job_payment';
     }
 
     const existingPendingPayment = await db
@@ -132,13 +59,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       .where(
         and(
           eq(payments.payerId, session.user.id),
-          eq(payments.referenceId, referenceId),
+          eq(payments.referenceId, courseId),
           eq(payments.status, 'PENDING'),
         ),
       )
       .get();
 
     if (existingPendingPayment) {
+      // 기존 PENDING 결제가 있으면 삭제하고 새로 생성
       await db
         .delete(payments)
         .where(eq(payments.id, existingPendingPayment.id));
@@ -151,8 +79,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       sessionId,
       orderId,
       method: 'cardAndEasyPay',
-      amount,
-      goodsName,
+      amount: course.price,
+      goodsName: course.title,
       returnUrl: `${appUrl}/payment/success`,
       buyerName: session.user.name || undefined,
       buyerEmail: session.user.email || undefined,
@@ -168,11 +96,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     await db.insert(payments).values({
       payerId: session.user.id,
-      payeeId,
-      amount,
-      type: paymentType,
+      payeeId: course.instructorId,
+      amount: course.price,
+      type: 'course_purchase',
       status: 'PENDING',
-      referenceId,
+      referenceId: courseId,
       orderId,
       nicepaySessionId: sessionId,
       paymentProvider: 'nicepay',

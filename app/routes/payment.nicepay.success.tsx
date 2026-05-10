@@ -2,7 +2,7 @@ import { type ActionFunctionArgs, redirect, Link } from 'react-router';
 import { useSearchParams } from 'react-router';
 import { eq, sql } from 'drizzle-orm';
 import { db } from '~/lib/db.server';
-import { payments, enrollments, courses, contracts, jobApplications } from '~/db/schema';
+import { payments, enrollments, courses } from '~/db/schema';
 import { auth } from '~/lib/auth.server';
 import { approvePayment } from '~/lib/nicepay.server';
 import { CheckCircle2, XCircle, ArrowLeft } from 'lucide-react';
@@ -42,10 +42,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return redirect('/my/courses');
   }
 
-  if (payment.status === 'escrow') {
-    return redirect('/dashboard');
-  }
-
   if (payment.amount !== amount) {
     return redirect('/payment/fail?error=AMOUNT_MISMATCH');
   }
@@ -66,28 +62,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   const session = await auth.api.getSession({ headers: request.headers });
-
-  if (payment.type === 'job_payment') {
-    await db.update(payments).set({
-      status: 'escrow',
-      paymentKey: tid,
-      tossPaymentMethod: result.payMethod || null,
-      approvedAt: result.paidAt ? new Date(result.paidAt) : new Date(),
-    }).where(eq(payments.id, payment.id));
-
-    await db.update(contracts)
-      .set({ status: 'in_progress', updatedAt: new Date() })
-      .where(eq(contracts.id, payment.referenceId!));
-
-    const contract = await db.select().from(contracts).where(eq(contracts.id, payment.referenceId!)).get();
-    if (contract) {
-      await db.update(jobApplications)
-        .set({ status: 'accepted', updatedAt: new Date() })
-        .where(eq(jobApplications.id, contract.applicationId));
-    }
-
-    return redirect('/dashboard');
-  }
 
   await db.update(payments).set({
     status: 'DONE',

@@ -1,6 +1,6 @@
 import { redirect, useLoaderData } from 'react-router';
 import type { MetaFunction, LoaderFunctionArgs, ActionFunctionArgs } from 'react-router';
-import { eq, desc, sql, inArray } from 'drizzle-orm';
+import { eq, desc, sql } from 'drizzle-orm';
 import { Users, Briefcase, BookOpen, CreditCard } from 'lucide-react';
 import { Badge } from '~/components/ui/badge';
 import { Button } from '~/components/ui/button';
@@ -15,14 +15,14 @@ export const meta: MetaFunction = () => [{ title: '관리자 - poomwork' }];
 export async function loader({ request }: LoaderFunctionArgs) {
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session?.user || session.user.role !== 'admin') return redirect('/dashboard');
-  const [userCount] = await db.select({ count: sql`count(*)` }).from(user);
-  const [jobCount] = await db.select({ count: sql`count(*)` }).from(jobs);
-  const [courseCount] = await db.select({ count: sql`count(*)` }).from(courses);
-  const [revenue] = await db.select({ total: sql`coalesce(sum(${payments.amount}), 0)` }).from(payments).where(eq(payments.status, 'DONE'));
+  const [userCount] = await db.select({ count: sql<number>`count(*)` }).from(user);
+  const [jobCount] = await db.select({ count: sql<number>`count(*)` }).from(jobs);
+  const [courseCount] = await db.select({ count: sql<number>`count(*)` }).from(courses);
+  const [revenue] = await db.select({ total: sql<number>`coalesce(sum(${payments.amount}), 0)` }).from(payments).where(eq(payments.status, 'completed'));
   const allUsers = await db.select().from(user).orderBy(desc(user.createdAt)).limit(50);
-  const allJobsRaw = await db.select({ id: jobs.id, title: jobs.title, status: jobs.status, applicationCount: jobs.applicationCount, createdAt: jobs.createdAt, clientName: user.name })
+  const allJobs = await db.select({ id: jobs.id, title: jobs.title, status: jobs.status, applicationCount: jobs.applicationCount, createdAt: jobs.createdAt, clientName: user.name })
     .from(jobs).leftJoin(user, eq(jobs.clientId, user.id)).orderBy(desc(jobs.createdAt)).limit(50);
-  const allCoursesRaw = await db.select({ id: courses.id, title: courses.title, price: courses.price, status: courses.status, enrollmentCount: courses.enrollmentCount, instructorName: user.name })
+  const allCourses = await db.select({ id: courses.id, title: courses.title, price: courses.price, status: courses.status, enrollmentCount: courses.enrollmentCount, instructorName: user.name })
     .from(courses).leftJoin(user, eq(courses.instructorId, user.id)).orderBy(desc(courses.createdAt)).limit(50);
   const allPaymentsRaw = await db.select({
     id: payments.id,
@@ -40,26 +40,15 @@ export async function loader({ request }: LoaderFunctionArgs) {
   .from(payments)
   .leftJoin(user, eq(payments.payerId, user.id))
   .orderBy(desc(payments.createdAt)).limit(100);
-  const allJobs = allJobsRaw;
-  const allCourses = allCoursesRaw;
-  const courseIds = allPaymentsRaw.filter(p => p.type === 'course_purchase').map(p => p.courseId).filter((id): id is string => !!id);
-  const relevantCourses = courseIds.length > 0 ? await db.select({ id: courses.id, title: courses.title }).from(courses).where(inArray(courses.id, courseIds)) : [];
+
+  const courseIds = allPaymentsRaw.filter(p => p.type === 'course_purchase').map(p => p.courseId).filter(Boolean);
+  const relevantCourses = courseIds.length > 0 ? await db.select({ id: courses.id, title: courses.title }).from(courses).where(sql`${courses.id} IN (${sql.join(courseIds.map(id => sql`${id}`), sql`, `)})`) : [];
   const courseMap = Object.fromEntries(relevantCourses.map(c => [c.id, c.title]));
   const allPayments = allPaymentsRaw.map(p => ({
-    id: p.id,
-    amount: p.amount,
-    type: p.type,
-    status: p.status,
-    paymentMethod: p.paymentMethod,
-    paymentProvider: p.paymentProvider,
-    createdAt: p.createdAt,
-    payerId: p.payerId,
-    payerName: p.payerName ?? null,
-    payerEmail: p.payerEmail ?? null,
-    courseId: p.courseId,
+    ...p,
     courseTitle: p.type === 'course_purchase' ? courseMap[p.courseId as string] : null,
   }));
-  return { stats: { users: (userCount?.count as number) ?? 0, jobs: (jobCount?.count as number) ?? 0, courses: (courseCount?.count as number) ?? 0, revenue: (revenue?.total as number) ?? 0 }, allUsers, allJobs, allCourses, allPayments };
+  return { stats: { users: userCount?.count ?? 0, jobs: jobCount?.count ?? 0, courses: courseCount?.count ?? 0, revenue: revenue?.total ?? 0 }, allUsers, allJobs, allCourses, allPayments };
 }
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -101,30 +90,7 @@ const statusLabels: Record<string, { label: string; color: string }> = {
 export default function Admin() {
   const { stats, allUsers, allJobs, allCourses, allPayments } = useLoaderData<typeof loader>();
   const [statusFilter, setStatusFilter] = useState<string>('전체');
-  const [refundingId, setRefundingId] = useState<string | null>(null);
 
-  const handleRefund = async (paymentId: string) => {
-    if (!confirm('정말 환불하시겠습니까?')) return;
-    setRefundingId(paymentId);
-    try {
-      const res = await fetch('/api/payment/refund', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentId, reason: '관리자 환불' }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        alert('환불이 완료되었습니다.');
-        window.location.reload();
-      } else {
-        alert(data.message || data.error || '환불에 실패했습니다.');
-      }
-    } catch (err) {
-      alert('환불 요청 중 오류가 발생했습니다.');
-    } finally {
-      setRefundingId(null);
-    }
-  };
   const filteredPayments = statusFilter === '전체' ? allPayments : allPayments.filter((p: any) => p.status === statusFilter);
   const statusCounts = {
     '전체': allPayments.length,
@@ -208,14 +174,11 @@ export default function Admin() {
                 <td className='p-3'>{statusLabels[p.status] && <Badge className={`rounded-[20px] ${statusLabels[p.status]!.color}`}>{statusLabels[p.status]!.label}</Badge>}</td>
                 <td className='p-3'>
                   {p.status === 'DONE' && (
-                    <Button
-                      size='sm'
-                      className='bg-[#DB2777] hover:bg-[#DB2777] active:scale-[0.92] transition-all duration-200 ease-in-out rounded-[20px] text-xs h-6'
-                      disabled={refundingId === p.id}
-                      onClick={() => handleRefund(p.id)}
-                    >
-                      {refundingId === p.id ? '처리 중...' : '환불 승인'}
-                    </Button>
+                    <form method='post' action='/api/payment/refund'>
+                      <input type='hidden' name='paymentId' value={p.id} />
+                      <input type='hidden' name='reason' value='관리자 환불' />
+                      <Button type='submit' size='sm' className='bg-[#DB2777] hover:bg-[#DB2777] active:scale-[0.92] transition-all duration-200 ease-in-out rounded-[20px] text-xs h-6'>환불 승인</Button>
+                    </form>
                   )}
                 </td>
               </tr>

@@ -12,13 +12,12 @@ function isLibsql(url: string): boolean {
     url.startsWith('http://')
   );
 }
-const dbCredentials = isLibsql(databaseUrl)
-  ? { url: databaseUrl, authToken: process.env.DATABASE_AUTH_TOKEN }
-  : { url: databaseUrl };
 
 export default defineConfig({
   schema: './app/db/schema.ts',
   out: './drizzle',
   dialect: 'sqlite',
-  dbCredentials,
+  dbCredentials: isLibsql(databaseUrl)
+    ? { url: databaseUrl, authToken: process.env.DATABASE_AUTH_TOKEN }
+    : { url: databaseUrl },
 });

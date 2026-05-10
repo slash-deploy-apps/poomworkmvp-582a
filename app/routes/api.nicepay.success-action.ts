@@ -1,7 +1,7 @@
 import { type ActionFunctionArgs } from 'react-router';
 import { eq, sql } from 'drizzle-orm';
 import { db } from '~/lib/db.server';
-import { payments, enrollments, courses, contracts, jobApplications } from '~/db/schema';
+import { payments, enrollments, courses } from '~/db/schema';
 import { auth } from '~/lib/auth.server';
 import { getTransaction, verifySignature } from '~/lib/nicepay.server';
 
@@ -48,7 +48,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
   }
 
-  if (payment.status === 'DONE' || payment.status === 'escrow') {
+  if (payment.status === 'DONE') {
     return Response.json({
       success: true,
       message: 'Payment already confirmed',
@@ -114,34 +114,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const session = await auth.api.getSession({ headers: request.headers });
 
-  if (payment.type === 'job_payment') {
-    await db.update(payments).set({
-      status: 'escrow',
+  await db
+    .update(payments)
+    .set({
+      status: 'DONE',
       paymentKey: tx.tid || null,
       tossPaymentMethod: tx.payMethod || null,
       approvedAt: tx.paidAt ? new Date(tx.paidAt) : new Date(),
-    }).where(eq(payments.id, payment.id));
-
-    await db.update(contracts)
-      .set({ status: 'in_progress', updatedAt: new Date() })
-      .where(eq(contracts.id, payment.referenceId!));
-
-    const contract = await db.select().from(contracts).where(eq(contracts.id, payment.referenceId!)).get();
-    if (contract) {
-      await db.update(jobApplications)
-        .set({ status: 'accepted', updatedAt: new Date() })
-        .where(eq(jobApplications.id, contract.applicationId));
-    }
-
-    return Response.json({ success: true });
-  }
-
-  await db.update(payments).set({
-    status: 'DONE',
-    paymentKey: tx.tid || null,
-    tossPaymentMethod: tx.payMethod || null,
-    approvedAt: tx.paidAt ? new Date(tx.paidAt) : new Date(),
-  }).where(eq(payments.id, payment.id));
+    })
+    .where(eq(payments.id, payment.id));
 
   if (session?.user?.id) {
     await db.insert(enrollments).values({

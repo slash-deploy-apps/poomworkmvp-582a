@@ -4,13 +4,12 @@ loadDotenv();
 
 import { drizzle as drizzleBetterSqlite3 } from 'drizzle-orm/better-sqlite3';
 import { drizzle as drizzleLibsql } from 'drizzle-orm/libsql';
-import type { LibSQLDatabase } from 'drizzle-orm/libsql';
 import { createClient } from '@libsql/client';
 import Database from 'better-sqlite3';
 
 import * as schema from '~/db/schema';
 
-const databaseUrl = process.env.NODE_ENV === 'production' ? (process.env.DATABASE_URL ?? 'sqlite.db') : '/home/user/projects/poomworkmvp/sqlite.db';
+const databaseUrl = process.env.DATABASE_URL ?? 'sqlite.db';
 
 function isLibsql(url: string): boolean {
   return (
@@ -20,7 +19,9 @@ function isLibsql(url: string): boolean {
   );
 }
 
-let db: LibSQLDatabase<typeof schema>;
+let db:
+  | ReturnType<typeof drizzleBetterSqlite3>
+  | ReturnType<typeof drizzleLibsql>;
 
 if (isLibsql(databaseUrl)) {
   const client = createClient({
@@ -32,7 +33,7 @@ if (isLibsql(databaseUrl)) {
   const sqlite = new Database(databaseUrl);
   sqlite.pragma('journal_mode = WAL');
   sqlite.pragma('foreign_keys = ON');
-  db = drizzleBetterSqlite3(sqlite, { schema }) as unknown as LibSQLDatabase<typeof schema>;
+  db = drizzleBetterSqlite3(sqlite, { schema });
 }
 
 export { db };
