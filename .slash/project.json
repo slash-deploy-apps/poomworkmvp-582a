@@ -39,5 +39,9 @@
       "stopCommand": null,
       "primary": true
     }
-  ]
+  ],
+  "deploy": {
+    "url": "https://poomworkmvp-582a.app.slash.ai.kr",
+    "status": "building"
+  }
 }
