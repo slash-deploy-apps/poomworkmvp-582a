@@ -379,7 +379,7 @@ function PortfolioForm({ portfolio, onClose }: { portfolio?: any; onClose: () =>
 
 function Badge({ role }: { role: string }) {
   const config = {
-    worker: { label: '인력 제공자', bg: 'bg-[#EDE9FE]', text: 'text-[#332F3A]' },
+    worker: { label: '전문가', bg: 'bg-[#EDE9FE]', text: 'text-[#332F3A]' },
     client: { label: '일거리 제공자', bg: 'bg-[#EDE9FE]', text: 'text-[#332F3A]' },
     admin: { label: '관리자', bg: 'bg-[#DB2777]', text: 'text-white' },
   }[role] || { label: role, bg: 'bg-gray-200', text: 'text-gray-700' };

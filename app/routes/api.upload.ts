@@ -21,17 +21,54 @@ export async function action({ request }: ActionFunctionArgs) {
     return Response.json({ error: 'No file provided' }, { status: 400 });
   }
 
-  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-  if (!allowedTypes.includes(file.type)) {
-    return Response.json({ error: 'Invalid file type' }, { status: 400 });
+  const imageEndpoints = new Set([
+    'profileImage',
+    'coverImage',
+    'portfolioImage',
+    'jobThumbnail',
+    'courseThumbnail',
+    'lessonThumbnail',
+  ]);
+  const deliverableEndpoints = new Set(['deliverable']);
+
+  const imageTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+  const deliverableTypes = [
+    ...imageTypes,
+    'application/pdf',
+    'application/zip',
+    'application/x-zip-compressed',
+    'application/x-rar-compressed',
+    'application/vnd.rar',
+    'application/x-7z-compressed',
+    'text/plain',
+    'text/markdown',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'video/mp4',
+    'video/quicktime',
+    'video/webm',
+  ];
+
+  let allowedTypes: string[];
+  let maxSize: number;
+  if (deliverableEndpoints.has(endpoint)) {
+    allowedTypes = deliverableTypes;
+    maxSize = 32 * 1024 * 1024; // 32MB for deliverables
+  } else if (imageEndpoints.has(endpoint)) {
+    allowedTypes = imageTypes;
+    maxSize = 4 * 1024 * 1024;
+  } else {
+    allowedTypes = imageTypes;
+    maxSize = 2 * 1024 * 1024;
   }
 
-  const maxSize =
-    endpoint === 'profileImage' ||
-    endpoint === 'coverImage' ||
-    endpoint === 'portfolioImage'
-      ? 4 * 1024 * 1024
-      : 2 * 1024 * 1024;
+  if (!allowedTypes.includes(file.type)) {
+    return Response.json({ error: `Invalid file type: ${file.type}` }, { status: 400 });
+  }
   if (file.size > maxSize) {
     return Response.json({ error: 'File too large' }, { status: 400 });
   }

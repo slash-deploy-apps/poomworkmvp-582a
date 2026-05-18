@@ -14,7 +14,7 @@ export function Footer() {
               <span className='text-lg font-black text-white' style={{ fontFamily: "'Nunito', sans-serif" }}>poomwork</span>
             </div>
             <p className='text-sm text-[#A89FB8]'>
-              전문 인력과 일거리를 연결하고,<br />
+              전문가와 일거리를 연결하고,<br />
               실무 교육을 제공하는 플랫폼
             </p>
           </div>
@@ -22,7 +22,7 @@ export function Footer() {
             <h3 className='font-bold text-white mb-4'>서비스</h3>
             <ul className='space-y-2 text-sm'>
               <li><Link to='/jobs' className='hover:text-white transition-all duration-300 rounded-full px-2 py-1 -mx-2'>일거리 찾기</Link></li>
-              <li><Link to='/workers' className='hover:text-white transition-all duration-300 rounded-full px-2 py-1 -mx-2'>인력 찾기</Link></li>
+              <li><Link to='/workers' className='hover:text-white transition-all duration-300 rounded-full px-2 py-1 -mx-2'>전문가 찾기</Link></li>
               <li><Link to='/courses' className='hover:text-white transition-all duration-300 rounded-full px-2 py-1 -mx-2'>교육 강좌</Link></li>
             </ul>
           </div>
@@ -37,7 +37,7 @@ export function Footer() {
           <div>
             <h3 className='font-bold text-white mb-4'>연락처</h3>
             <ul className='space-y-2 text-sm'>
-              <li>이메일: help@poomwork.com</li>
+              <li>이메일: mainsoft2024@gmail.com</li>
               <li>전화: 02-1234-5678</li>
               <li>운영시간: 평일 9시~18시</li>
             </ul>

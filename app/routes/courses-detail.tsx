@@ -356,7 +356,7 @@ export default function CourseDetail() {
             ) : (
               <Link to="/login">
                 <Button className="w-full bg-[#7C3AED] hover:bg-[#5a3d95] active:scale-[0.92] transition-all h-14 rounded-[20px] text-base font-medium">
-                  수강 신청하기
+                  로그인이 필요합니다
                 </Button>
               </Link>
             )}

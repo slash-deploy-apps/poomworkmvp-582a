@@ -216,25 +216,49 @@ export default function JobDetail() {
 
         <div className="space-y-6">
           {client && (
-            <div className='bg-[#EDE9FE] rounded-[32px] p-6'>
-              <h2 className='text-base font-bold mb-4'>의뢰자 정보</h2>
-              <div className='flex items-center gap-3 mb-3'>
-                <div className='w-10 h-10 rounded-[20px] bg-[#EDE9FE] flex items-center justify-center text-[#7C3AED] font-semibold'>
-                  {(client.name || '?')[0]}
+            (() => {
+              const canChat =
+                currentUser &&
+                job.clientId &&
+                currentUser.id !== job.clientId;
+              const Card = (
+                <div
+                  className={`bg-[#EDE9FE] rounded-[32px] p-6 ${canChat ? 'cursor-pointer hover:-translate-y-1 hover:shadow-clay-card-hover transition-all duration-200 active:scale-[0.98]' : ''}`}
+                >
+                  <div className='flex items-center justify-between mb-4'>
+                    <h2 className='text-base font-bold'>의뢰자 정보</h2>
+                    {canChat && (
+                      <span className='text-xs font-bold text-[#7C3AED] bg-white px-3 py-1 rounded-[20px]'>
+                        채팅하기 →
+                      </span>
+                    )}
+                  </div>
+                  <div className='flex items-center gap-3 mb-3'>
+                    <div className='w-10 h-10 rounded-[20px] bg-white flex items-center justify-center text-[#7C3AED] font-semibold'>
+                      {(client.name || '?')[0]}
+                    </div>
+                    <div>
+                      <div className='font-medium'>{client.name}</div>
+                      <div className='text-sm text-[#635F69]'>{client.location || '한국'}</div>
+                    </div>
+                  </div>
+                  {client.rating > 0 && (
+                    <div className='flex items-center gap-1 text-sm'>
+                      <Star className='h-4 w-4 text-yellow-400 fill-yellow-400' />
+                      <span>{client.rating}</span>
+                      <span className='text-gray-400'>({client.reviewCount})</span>
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <div className='font-medium'>{client.name}</div>
-                  <div className='text-sm text-[#635F69]'>{client.location || '한국'}</div>
-                </div>
-              </div>
-              {client.rating > 0 && (
-                <div className='flex items-center gap-1 text-sm'>
-                  <Star className='h-4 w-4 text-yellow-400 fill-yellow-400' />
-                  <span>{client.rating}</span>
-                  <span className='text-gray-400'>({client.reviewCount})</span>
-                </div>
-              )}
-            </div>
+              );
+              return canChat ? (
+                <Link to={`/messages?peerId=${job.clientId}&jobId=${job.id}`} className='block'>
+                  {Card}
+                </Link>
+              ) : (
+                Card
+              );
+            })()
           )}
           {/* Applications list for client */}
           {/* Review form for client */}

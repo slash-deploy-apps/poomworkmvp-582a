@@ -1,5 +1,5 @@
 import { type ActionFunctionArgs } from 'react-router';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '~/lib/db.server';
 import { messages, jobApplications, contracts, jobs } from '~/db/schema';
 import { auth } from '~/lib/auth.server';
@@ -32,18 +32,49 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return Response.json({ success: false, error: 'MISSING_FIELDS' }, { status: 400 });
   }
 
-  const application = await db
+  // Verify the receiver is the job's client and the sender is a worker (not the client).
+  const job = await db.select().from(jobs).where(eq(jobs.id, jobId)).get();
+  if (!job) {
+    return Response.json({ success: false, error: 'JOB_NOT_FOUND' }, { status: 404 });
+  }
+  if (job.clientId === session.user.id) {
+    return Response.json(
+      { success: false, error: 'CLIENT_CANNOT_PROPOSE', message: '의뢰자는 자신의 일거리에 제안할 수 없습니다.' },
+      { status: 403 },
+    );
+  }
+  if (job.clientId !== receiverId) {
+    return Response.json(
+      { success: false, error: 'RECEIVER_NOT_JOB_CLIENT', message: '수신자가 이 일거리의 의뢰자와 일치하지 않습니다.' },
+      { status: 400 },
+    );
+  }
+
+  // Find or create an application for this worker+job pair.
+  let application = await db
     .select()
     .from(jobApplications)
-    .where(eq(jobApplications.jobId, jobId))
+    .where(
+      and(
+        eq(jobApplications.jobId, jobId),
+        eq(jobApplications.workerId, session.user.id),
+      ),
+    )
     .get();
 
   if (!application) {
-    return Response.json({ success: false, error: 'APPLICATION_NOT_FOUND' }, { status: 404 });
-  }
-
-  if (application.workerId !== session.user.id) {
-    return Response.json({ success: false, error: 'FORBIDDEN' }, { status: 403 });
+    application = await db
+      .insert(jobApplications)
+      .values({
+        jobId,
+        workerId: session.user.id,
+        coverLetter: '',
+        proposedBudget: amount,
+        proposedDuration: duration ?? null,
+        status: 'proposal_sent',
+      })
+      .returning()
+      .get();
   }
 
   const metadata = JSON.stringify({
@@ -76,23 +107,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   let contract = existingContract;
   if (!existingContract) {
-    // Get job to find clientId
-    const job = await db.select().from(jobs).where(eq(jobs.id, jobId)).get();
-    if (job) {
-      contract = await db
-        .insert(contracts)
-        .values({
-          applicationId: application.id,
-          workerId: application.workerId,
-          clientId: job.clientId,
-          jobId,
-          amount,
-          duration: duration || '',
-          status: 'proposal_sent',
-        })
-        .returning()
-        .get();
-    }
+    contract = await db
+      .insert(contracts)
+      .values({
+        applicationId: application.id,
+        workerId: application.workerId,
+        clientId: job.clientId,
+        jobId,
+        amount,
+        duration: duration || '',
+        status: 'proposal_sent',
+      })
+      .returning()
+      .get();
   } else {
     // Update existing contract with new proposal amount/duration
     contract = await db

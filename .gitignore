@@ -9,6 +9,14 @@
 # database
 db.sqlite
 sqlite.db
+sqlite.db-shm
+sqlite.db-wal
+
+# slash runtime
+.slash/session.json
+
+# dotenv vault
+.env.vault
 
 # react-router
 /.react-router/

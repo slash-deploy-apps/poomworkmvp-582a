@@ -13,6 +13,7 @@ import { auth } from '~/lib/auth.server';
 import { Header } from '~/components/layout/header';
 import { Footer } from '~/components/layout/footer';
 import { applyOpenCorsToHeaders } from '~/lib/open-cors';
+import { getUnreadMessagesCount } from '~/lib/messages.server';
 
 import './styles/globals.css';
 
@@ -37,7 +38,9 @@ export const middleware = [openCorsMiddleware];
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const session = await auth.api.getSession({ headers: request.headers });
-  return { user: session?.user ?? null };
+  const user = session?.user ?? null;
+  const unreadMessages = await getUnreadMessagesCount(user?.id);
+  return { user, unreadMessages };
 }
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -66,10 +69,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  const { user } = useLoaderData<typeof loader>();
+  const { user, unreadMessages } = useLoaderData<typeof loader>();
   return (
     <>
-      <Header user={user} />
+      <Header user={user} unreadMessages={unreadMessages} />
       <main className="flex-1">
         <Outlet />
       </main>

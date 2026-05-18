@@ -1,6 +1,6 @@
 import { redirect, useLoaderData } from 'react-router';
 import type { MetaFunction, LoaderFunctionArgs, ActionFunctionArgs } from 'react-router';
-import { eq, desc, sql } from 'drizzle-orm';
+import { eq, desc, sql, or } from 'drizzle-orm';
 import { Users, Briefcase, BookOpen, CreditCard } from 'lucide-react';
 import { Badge } from '~/components/ui/badge';
 import { Button } from '~/components/ui/button';
@@ -18,7 +18,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const [userCount] = await db.select({ count: sql<number>`count(*)` }).from(user);
   const [jobCount] = await db.select({ count: sql<number>`count(*)` }).from(jobs);
   const [courseCount] = await db.select({ count: sql<number>`count(*)` }).from(courses);
-  const [revenue] = await db.select({ total: sql<number>`coalesce(sum(${payments.amount}), 0)` }).from(payments).where(eq(payments.status, 'completed'));
+  const [revenue] = await db.select({ total: sql<number>`coalesce(sum(${payments.amount}), 0)` }).from(payments).where(or(eq(payments.status, 'DONE'), eq(payments.status, 'escrow_released')));
   const allUsers = await db.select().from(user).orderBy(desc(user.createdAt)).limit(50);
   const allJobs = await db.select({ id: jobs.id, title: jobs.title, status: jobs.status, applicationCount: jobs.applicationCount, createdAt: jobs.createdAt, clientName: user.name })
     .from(jobs).leftJoin(user, eq(jobs.clientId, user.id)).orderBy(desc(jobs.createdAt)).limit(50);
@@ -70,7 +70,7 @@ export async function action({ request }: ActionFunctionArgs) {
     await db.update(courses).set({ status }).where(eq(courses.id, courseId));
   } else if (actionType === 'releaseEscrow') {
     const paymentId = formData.get('paymentId') as string;
-    await db.update(payments).set({ status: 'completed', escrowReleasedAt: new Date() }).where(eq(payments.id, paymentId));
+    await db.update(payments).set({ status: 'escrow_released', escrowReleasedAt: new Date() }).where(eq(payments.id, paymentId));
   }
   return null;
 }
@@ -95,6 +95,8 @@ export default function Admin() {
   const statusCounts = {
     '전체': allPayments.length,
     'PENDING': allPayments.filter((p: any) => p.status === 'PENDING').length,
+    'escrow': allPayments.filter((p: any) => p.status === 'escrow').length,
+    'escrow_released': allPayments.filter((p: any) => p.status === 'escrow_released').length,
     'DONE': allPayments.filter((p: any) => p.status === 'DONE').length,
     'FAILED': allPayments.filter((p: any) => p.status === 'FAILED').length,
     'CANCELLED': allPayments.filter((p: any) => p.status === 'CANCELLED').length,

@@ -9,7 +9,7 @@ import { Button } from '~/components/ui/button';
 import { db } from '~/lib/db.server';
 import { user } from '~/db/schema';
 
-export const meta: MetaFunction = () => [{ title: '인력 찾기 - poomwork' }];
+export const meta: MetaFunction = () => [{ title: '전문가 찾기 - poomwork' }];
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
@@ -25,8 +25,8 @@ export default function WorkersPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold">인력 찾기</h1>
-        <p className="text-[#635F69] mt-1">전문 인력을 찾아보세요</p>
+        <h1 className="text-3xl font-bold">전문가 찾기</h1>
+        <p className="text-[#635F69] mt-1">전문가를 찾아보세요</p>
       </div>
       <div className="mb-6 relative max-w-md">
         <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />

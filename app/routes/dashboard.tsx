@@ -185,7 +185,7 @@ export default function Dashboard() {
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-extrabold" style={{ fontFamily: "'Nunito', sans-serif" }}>대시보드</h1>
-        <p className="text-[#635F69] mt-1">{u.name || u.email}님, 안녕하세요 ({u.role === 'worker' ? '인력 제공자' : u.role === 'client' ? '일거리 제공자' : '관리자'})</p>
+        <p className="text-[#635F69] mt-1">{u.name || u.email}님, 안녕하세요 ({u.role === 'worker' ? '전문가' : u.role === 'client' ? '일거리 제공자' : '관리자'})</p>
         <div className='flex gap-2 mt-2'>
           <Link to='/profile/edit' className='inline-block px-5 py-2 rounded-[20px] bg-white/70 backdrop-blur-xl shadow-clay-card text-[#332F3A] text-sm font-bold active:scale-[0.92] transition-all duration-200'>프로필 편집</Link>
           <Link to='/messages' className='inline-block px-5 py-2 rounded-[20px] bg-gradient-to-br from-[#A78BFA] to-[#7C3AED] text-white text-sm font-bold shadow-clay-button active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200'>메시지</Link>
@@ -263,8 +263,8 @@ export default function Dashboard() {
                         <div className='font-medium'>{new Intl.NumberFormat('ko-KR').format(p.amount)}원</div>
                         <div className='text-sm text-[#635F69]'>{p.type === 'job_payment' ? '일거리 정산' : p.type} · {new Date(p.createdAt).toLocaleDateString('ko-KR')}</div>
                       </div>
-                      <Badge className={p.status === 'completed' ? 'bg-[#EDE9FE] text-[#332F3A]' : p.status === 'escrow' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-[#635F69]'}>
-                        {p.status === 'completed' ? '정산 완료' : p.status === 'escrow' ? '에스크로' : p.status}
+                      <Badge className={p.status === 'escrow_released' || p.status === 'DONE' ? 'bg-[#EDE9FE] text-[#332F3A]' : p.status === 'escrow' ? 'bg-yellow-100 text-yellow-700' : p.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-[#635F69]'}>
+                        {p.status === 'escrow_released' || p.status === 'DONE' ? '정산 완료' : p.status === 'escrow' ? '에스크로 보관중' : p.status === 'PENDING' ? '결제 대기' : p.status === 'FAILED' ? '실패' : p.status === 'CANCELLED' ? '환불됨' : p.status}
                       </Badge>
                     </div>
                   ))}
@@ -339,14 +339,9 @@ export default function Dashboard() {
                             {a.proposedDuration && <div className='text-sm text-[#635F69]'>예상 기간: {a.proposedDuration}</div>}
                             {a.status === 'pending' && (
                               <div className='flex gap-2 mt-3'>
-                                <form method='post'>
-                                  <input type='hidden' name='_action' value='acceptApplication' />
-                                  <input type='hidden' name='applicationId' value={a.id} />
-                                  <input type='hidden' name='jobId' value={j.id} />
-                                  <input type='hidden' name='workerId' value={a.workerId || ''} />
-                                  <input type='hidden' name='amount' value={a.proposedBudget || j.budgetMin || 0} />
-                                  <Button type='submit' size='sm' className='bg-[#7C3AED] hover:bg-#7C3AED rounded-[20px] active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200'>수락</Button>
-                                </form>
+                                <Link to={`/messages?peerId=${a.workerId}&jobId=${j.id}`}>
+                                  <Button size='sm' className='bg-[#7C3AED] hover:bg-#7C3AED rounded-[20px] active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200'>채팅으로 수락 진행</Button>
+                                </Link>
                                 <form method='post'>
                                   <input type='hidden' name='_action' value='rejectApplication' />
                                   <input type='hidden' name='applicationId' value={a.id} />
@@ -376,8 +371,8 @@ export default function Dashboard() {
                         <div className='text-sm text-[#635F69]'>{new Intl.NumberFormat('ko-KR').format(p.amount)}원 · {p.paymentMethod || 'N/A'} · {new Date(p.createdAt).toLocaleDateString('ko-KR')}</div>
                       </div>
                       <div className='flex items-center gap-2'>
-                        <Badge className={p.status === 'DONE' ? 'bg-green-100 text-green-700' : p.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' : p.status === 'FAILED' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}>
-                          {p.status === 'DONE' ? '결제 완료' : p.status === 'PENDING' ? '대기중' : p.status === 'FAILED' ? '실패' : p.status === 'CANCELLED' ? '취소됨' : p.status}
+                        <Badge className={p.status === 'DONE' ? 'bg-green-100 text-green-700' : p.status === 'escrow' ? 'bg-yellow-100 text-yellow-700' : p.status === 'escrow_released' ? 'bg-green-100 text-green-700' : p.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' : p.status === 'FAILED' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}>
+                          {p.status === 'DONE' ? '결제 완료' : p.status === 'escrow' ? '에스크로 보관중' : p.status === 'escrow_released' ? '지급 완료' : p.status === 'PENDING' ? '대기중' : p.status === 'FAILED' ? '실패' : p.status === 'CANCELLED' ? '취소됨' : p.status}
                         </Badge>
                         {p.status === 'DONE' && (
                           <Button size='sm' variant='outline' className='rounded-[20px] text-xs h-7 border-[#DB2777] text-[#DB2777] hover:bg-red-50 active:scale-[0.92] transition-all duration-200' onClick={() => window.alert('환불은 관리자 승인 후 처리됩니다')}>환불 요청</Button>

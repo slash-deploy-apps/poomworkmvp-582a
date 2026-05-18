@@ -56,7 +56,7 @@ export default function Register() {
                 className={`p-6 rounded-[24px] border-0 text-center transition-all duration-200 cursor-pointer active:scale-[0.92] ${role === 'worker' ? 'bg-gradient-to-br from-[#A78BFA] to-[#7C3AED] text-white shadow-clay-button' : 'bg-white/80 text-[#332F3A] shadow-clay-card hover:-translate-y-1 hover:shadow-clay-card-hover'}`}
               >
                 <User className={`h-10 w-10 mx-auto mb-3 ${role === 'worker' ? 'text-white' : 'text-[#7C3AED]'}`} />
-                <div className='font-bold'>인력 제공자</div>
+                <div className='font-bold'>전문가</div>
                 <div className={`text-xs mt-1 ${role === 'worker' ? 'text-purple-100' : 'text-[#635F69]'}`}>전문가로 활동</div>
               </button>
               <button
@@ -74,7 +74,7 @@ export default function Register() {
           <form onSubmit={handleSubmit} className='space-y-4'>
             <button type='button' onClick={() => setStep(0)} className='text-sm text-[#7C3AED] hover:underline mb-2 rounded-[20px] hover:bg-[#7C3AED]/10 px-3 py-1 transition-all duration-200'>← 역할 다시 선택</button>
             <div className='p-3 bg-[#EDE9FE] rounded-[20px] text-sm text-[#332F3A] mb-4 text-center font-bold'>
-              {role === 'worker' ? '인력 제공자' : '일거리 제공자'}로 가입
+              {role === 'worker' ? '전문가' : '일거리 제공자'}로 가입
             </div>
             {error && <div className='p-3 text-sm text-[#EF4444] bg-red-50/80 backdrop-blur-sm rounded-[20px]'>{error}</div>}
             <div className='space-y-2'>

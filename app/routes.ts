@@ -18,7 +18,7 @@ export default [
   route('jobs/:jobId', 'routes/jobs-detail.tsx'),
   route('jobs/:jobId/edit', 'routes/jobs-edit.tsx'),
 
-  // Workers (인력)
+  // Workers (전문가)
   route('workers', 'routes/workers.tsx'),
   route('workers/:workerId', 'routes/workers-detail.tsx'),
 
@@ -38,6 +38,18 @@ export default [
 
   // Messages
   route('messages', 'routes/messages.tsx'),
+  route('api/messages/proposal', 'routes/api.messages.proposal.ts'),
+
+  // Contracts (escrow)
+  route('contracts/:contractId/agree', 'routes/contracts.$contractId.agree.tsx'),
+  route('contracts/:contractId/deliver', 'routes/contracts.$contractId.deliver.tsx'),
+  route('contracts/:contractId/confirm', 'routes/contracts.$contractId.confirm.tsx'),
+  route('api/contracts/:id', 'routes/api.contracts.$id.ts'),
+  route('api/contracts/:id/agree', 'routes/api.contracts.$id.agree.ts'),
+  route('api/contracts/:id/status', 'routes/api.contracts.$id.status.ts'),
+  route('api/contracts/:id/deliver', 'routes/api.contracts.$id.deliver.ts'),
+  route('api/contracts/:id/confirm', 'routes/api.contracts.$id.confirm.ts'),
+  route('api/contracts/:id/reject', 'routes/api.contracts.$id.reject.ts'),
 
   // Admin
   route('admin', 'routes/admin.tsx'),

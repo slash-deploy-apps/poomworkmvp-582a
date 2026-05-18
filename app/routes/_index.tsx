@@ -1,9 +1,12 @@
-import { Link } from 'react-router';
+import { Link, useLoaderData } from 'react-router';
 import type { MetaFunction } from 'react-router';
 import { Code, Palette, Megaphone, Video, Languages, GraduationCap, Lightbulb, MoreHorizontal, ArrowRight, Users, FolderOpen, BookOpen, Star, Search, Shield, CheckCircle } from 'lucide-react';
 import { Button } from '~/components/ui/button';
+import { desc, eq } from 'drizzle-orm';
+import { db } from '~/lib/db.server';
+import { courses, user } from '~/db/schema';
 
-export const meta: MetaFunction = () => [{ title: 'poomwork - 전문 인력과 일거리를 연결하는 플랫폼' }];
+export const meta: MetaFunction = () => [{ title: 'poomwork - 전문가와 일거리를 연결하는 플랫폼' }];
 
 const categories = [
   { name: 'IT·개발', icon: Code, gradient: 'from-blue-400 to-blue-600' },
@@ -16,13 +19,36 @@ const categories = [
   { name: '기타', icon: MoreHorizontal, gradient: 'from-slate-400 to-slate-600' },
 ];
 
-const sampleCourses = [
-  { title: 'React 완벽 가이드', level: '초급', price: '49,000원', students: '1,234명' },
-  { title: 'Figma 마스터 클래스', level: '중급', price: '59,000원', students: '856명' },
-  { title: '디지털 마케팅 입문', level: '초급', price: '무료', students: '2,341명' },
-];
+export async function loader() {
+  const featuredCourses = await db
+    .select({
+      id: courses.id,
+      title: courses.title,
+      price: courses.price,
+      level: courses.level,
+      enrollmentCount: courses.enrollmentCount,
+      thumbnailUrl: courses.thumbnailUrl,
+      instructorName: user.name,
+    })
+    .from(courses)
+    .leftJoin(user, eq(courses.instructorId, user.id))
+    .where(eq(courses.status, 'published'))
+    .orderBy(desc(courses.enrollmentCount))
+    .limit(3);
+  return { featuredCourses };
+}
+
+const levelLabel: Record<string, string> = {
+  beginner: '초급',
+  intermediate: '중급',
+  advanced: '고급',
+};
+
+const formatPrice = (price: number) =>
+  price === 0 ? '무료' : `${new Intl.NumberFormat('ko-KR').format(price)}원`;
 
 export default function Index() {
+  const { featuredCourses } = useLoaderData<typeof loader>();
   const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -43,7 +69,7 @@ export default function Index() {
             <span className='text-sm font-medium text-[#7C3AED]'>✨ 새로운 방식으로 전문가를 만나보세요</span>
           </div>
           <h1 className='text-5xl md:text-7xl lg:text-8xl font-black mb-6 leading-[1.1] text-[#332F3A] animate-[fadeIn_0.6s_ease-out]' style={{ fontFamily: "'Nunito', sans-serif" }}>
-            전문 인력과 일거리를<br />
+            전문가와 일거리를<br />
             <span className='clay-text-gradient'>연결하는 플랫폼</span>
           </h1>
           <p className='text-lg md:text-xl text-[#635F69] mb-8 max-w-2xl mx-auto font-medium leading-relaxed animate-[fadeIn_0.7s_ease-out]'>
@@ -94,7 +120,7 @@ export default function Index() {
               </Link>
             </Button>
             <Button size='lg' variant='secondary' asChild>
-              <Link to='/register'>인력 등록하기</Link>
+              <Link to='/register'>전문가 등록하기</Link>
             </Button>
           </div>
         </div>
@@ -105,7 +131,7 @@ export default function Index() {
         <div className='container mx-auto px-4'>
           <div className='grid grid-cols-2 md:grid-cols-4 gap-6'>
             {[
-              { value: '1,000+', label: '등록 인력', icon: Users, gradient: 'from-purple-400 to-purple-600', textColor: 'text-[#7C3AED]' },
+              { value: '1,000+', label: '등록 전문가', icon: Users, gradient: 'from-purple-400 to-purple-600', textColor: 'text-[#7C3AED]' },
               { value: '500+', label: '진행 프로젝트', icon: FolderOpen, gradient: 'from-pink-400 to-pink-600', textColor: 'text-[#DB2777]' },
               { value: '50+', label: '교육 강좌', icon: BookOpen, gradient: 'from-sky-400 to-sky-600', textColor: 'text-[#0EA5E9]' },
               { value: '98%', label: '만족도', icon: Star, gradient: 'from-amber-400 to-amber-600', textColor: 'text-[#F59E0B]' },
@@ -151,7 +177,7 @@ export default function Index() {
           <div className='grid md:grid-cols-3 gap-10 max-w-4xl mx-auto'>
             {[
               { step: '1', title: '일거리 등록', desc: '필요한 프로젝트의 상세 내용을 등록하세요' },
-              { step: '2', title: '전문가 매칭', desc: '조건에 맞는 전문 인력을 찾아드립니다' },
+              { step: '2', title: '전문가 매칭', desc: '조건에 맞는 전문가를 찾아드립니다' },
               { step: '3', title: '프로젝트 시작', desc: '안전한 에스크로 결제로 프로젝트를 시작하세요' },
             ].map((item) => (
               <div key={item.step} className='text-center group'>
@@ -180,20 +206,32 @@ export default function Index() {
               <Link to='/courses'>전체 강좌 보기 <ArrowRight className='ml-2 h-4 w-4' /></Link>
             </Button>
           </div>
-          <div className='grid md:grid-cols-3 gap-6'>
-            {sampleCourses.map((course) => (
-              <div key={course.title} className='bg-white/10 backdrop-blur-xl border border-white/10 rounded-[32px] p-6 transition-all duration-500 hover:-translate-y-2 hover:bg-white/15 hover:shadow-clay-card-hover'>
-                <div className='flex items-center justify-center h-32 mb-4'>
-                  <GraduationCap className='h-16 w-16 text-white/30' />
-                </div>
-                <h3 className='font-bold text-lg mb-2 text-white' style={{ fontFamily: "'Nunito', sans-serif" }}>{course.title}</h3>
-                <div className='flex items-center justify-between'>
-                  <span className='text-sm text-purple-100'>{course.level} · {course.students}</span>
-                  <span className='font-bold text-white'>{course.price}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+          {featuredCourses.length === 0 ? (
+            <div className='text-center py-12 text-white/80'>아직 등록된 강좌가 없습니다.</div>
+          ) : (
+            <div className='grid md:grid-cols-3 gap-6'>
+              {featuredCourses.map((course) => (
+                <Link to={`/courses/${course.id}`} key={course.id} className='block group'>
+                  <div className='bg-white/10 backdrop-blur-xl border border-white/10 rounded-[32px] p-6 transition-all duration-500 hover:-translate-y-2 hover:bg-white/15 hover:shadow-clay-card-hover h-full'>
+                    <div className='flex items-center justify-center h-32 mb-4 overflow-hidden rounded-2xl'>
+                      {course.thumbnailUrl ? (
+                        <img src={course.thumbnailUrl} alt='' className='w-full h-full object-cover' />
+                      ) : (
+                        <GraduationCap className='h-16 w-16 text-white/30' />
+                      )}
+                    </div>
+                    <h3 className='font-bold text-lg mb-2 text-white line-clamp-2' style={{ fontFamily: "'Nunito', sans-serif" }}>{course.title}</h3>
+                    <div className='flex items-center justify-between'>
+                      <span className='text-sm text-purple-100'>
+                        {levelLabel[course.level] ?? course.level} · {course.enrollmentCount}명
+                      </span>
+                      <span className='font-bold text-white'>{formatPrice(course.price)}</span>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 

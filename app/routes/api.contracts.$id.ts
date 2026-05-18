@@ -1,8 +1,9 @@
 import { type ActionFunctionArgs, type LoaderFunctionArgs } from 'react-router';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { db } from '~/lib/db.server';
 import { contracts, jobs, user, jobApplications } from '~/db/schema';
 import { auth } from '~/lib/auth.server';
+import { autoReleaseEscrowIfNeeded } from '~/lib/escrow.server';
 
 // Valid status transitions
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -27,37 +28,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   }
 
   const contract = await db
-    .select({
-      contract: contracts,
-      job: {
-        id: jobs.id,
-        title: jobs.title,
-        description: jobs.description,
-        status: jobs.status,
-      },
-      worker: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        image: user.image,
-      },
-      client: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        image: user.image,
-      },
-      application: {
-        id: jobApplications.id,
-        coverLetter: jobApplications.coverLetter,
-        proposedBudget: jobApplications.proposedBudget,
-        proposedDuration: jobApplications.proposedDuration,
-      },
-    })
+    .select()
     .from(contracts)
-    .leftJoin(jobs, eq(contracts.jobId, jobs.id))
-    .leftJoin(user, eq(contracts.workerId, user.id))
-    .leftJoin(jobApplications, eq(contracts.applicationId, jobApplications.id))
     .where(eq(contracts.id, id))
     .get();
 
@@ -66,43 +38,47 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   }
 
   const userId = session.user.id;
-  if (contract.contract.workerId !== userId && contract.contract.clientId !== userId) {
+  if (contract.workerId !== userId && contract.clientId !== userId) {
     return Response.json({ success: false, error: 'FORBIDDEN' }, { status: 403 });
   }
 
-  // Auto-release check: if status='delivered' and deliveredAt + 7 days < now
-  if (contract.contract.status === 'delivered' && contract.contract.deliveredAt) {
-    const deliveredAt = new Date(contract.contract.deliveredAt);
-    const autoReleaseDate = new Date(deliveredAt.getTime() + 7 * 24 * 60 * 60 * 1000);
-    if (new Date() > autoReleaseDate) {
-      await db
-        .update(contracts)
-        .set({ status: 'completed', updatedAt: new Date() })
-        .where(eq(contracts.id, id));
+  // Auto-release check (idempotent): completes contract + releases escrow if 7 days passed.
+  const released = await autoReleaseEscrowIfNeeded(id);
 
-      return Response.json({
-        success: true,
-        data: {
-          ...contract.contract,
-          status: 'completed',
-          job: contract.job,
-          worker: contract.worker,
-          client: contract.client,
-        },
-        autoReleased: true,
-      });
-    }
-  }
+  // After auto-release, re-read contract to pick up new status / updatedAt.
+  const fresh = released
+    ? await db.select().from(contracts).where(eq(contracts.id, id)).get()
+    : contract;
+
+  const [job, workerInfo, clientInfo, application] = await Promise.all([
+    db.select().from(jobs).where(eq(jobs.id, contract.jobId)).get(),
+    db
+      .select({ id: user.id, name: user.name, email: user.email, image: user.image })
+      .from(user)
+      .where(eq(user.id, contract.workerId))
+      .get(),
+    db
+      .select({ id: user.id, name: user.name, email: user.email, image: user.image })
+      .from(user)
+      .where(eq(user.id, contract.clientId))
+      .get(),
+    db
+      .select()
+      .from(jobApplications)
+      .where(eq(jobApplications.id, contract.applicationId))
+      .get(),
+  ]);
 
   return Response.json({
     success: true,
     data: {
-      ...contract.contract,
-      job: contract.job,
-      worker: contract.worker,
-      client: contract.client,
-      application: contract.application,
+      ...fresh,
+      job,
+      worker: workerInfo,
+      client: clientInfo,
+      application,
     },
+    autoReleased: released,
   });
 };
 

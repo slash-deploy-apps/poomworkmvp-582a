@@ -17,7 +17,7 @@ export async function loader({ params }: LoaderFunctionArgs) {
   return { worker: worker[0], portfolios: portfolioList, reviews: reviewList };
 }
 
-export const meta: MetaFunction<typeof loader> = ({ data }) => [{ title: `${data?.worker.name || '인력'} - poomwork` }];
+export const meta: MetaFunction<typeof loader> = ({ data }) => [{ title: `${data?.worker.name || '전문가'} - poomwork` }];
 
 export default function WorkerDetail() {
   const { worker: w, portfolios: pf, reviews: rw } = useLoaderData<typeof loader>();
