@@ -20,7 +20,7 @@
   "deployment": {
     "provider": "coolify",
     "status": "deploying",
-    "url": "https://my-app.app.slash.ai.kr",
+    "url": "https://poomworkmvp-582a.app.slash.ai.kr",
     "lastDeployedAt": null
   },
   "db": {
@@ -39,9 +39,5 @@
       "stopCommand": null,
       "primary": true
     }
-  ],
-  "deploy": {
-    "url": "https://poomworkmvp-582a.app.slash.ai.kr",
-    "status": "building"
-  }
+  ]
 }
