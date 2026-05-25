@@ -1,4 +1,4 @@
-import { Link, redirect, useLoaderData, useFetcher } from 'react-router';
+import { Link, redirect, useLoaderData, useFetcher, useRevalidator } from 'react-router';
 import type {
   MetaFunction,
   LoaderFunctionArgs,
@@ -561,6 +561,7 @@ function ProposeAmountDialog({
   proposedBudget: number | null | undefined;
   proposedDuration: string | null | undefined;
 }) {
+  const revalidator = useRevalidator();
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState<string>(
     proposedBudget != null ? String(proposedBudget) : '',
@@ -606,7 +607,7 @@ function ProposeAmountDialog({
         );
       }
       setOpen(false);
-      window.location.reload();
+      revalidator.revalidate();
     } catch (err: any) {
       setError(err.message || '제안 전송 중 오류');
     } finally {
@@ -689,7 +690,46 @@ function ProposeAmountDialog({
 export default function Messages() {
   const data = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ success: boolean; redirectTo?: string }>();
+  const revalidator = useRevalidator();
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Poll for new messages every 3s when tab is visible and a conversation is active.
+  useEffect(() => {
+    if (!data.activePeerId) return;
+
+    const poll = () => {
+      if (document.visibilityState === 'visible' && revalidator.state === 'idle') {
+        revalidator.revalidate();
+      }
+    };
+
+    const intervalId = setInterval(poll, 3000);
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        poll();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [data.activePeerId, revalidator]);
+
+  // Revalidate immediately after the fetcher (text send / proposal accept / reject) completes.
+  const prevFetcherStateRef = useRef(fetcher.state);
+  useEffect(() => {
+    if (
+      prevFetcherStateRef.current !== 'idle' &&
+      fetcher.state === 'idle' &&
+      revalidator.state === 'idle'
+    ) {
+      revalidator.revalidate();
+    }
+    prevFetcherStateRef.current = fetcher.state;
+  }, [fetcher.state, revalidator]);
 
   // After accepting a proposal, follow redirectTo if returned.
   useEffect(() => {

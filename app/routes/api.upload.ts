@@ -28,6 +28,7 @@ export async function action({ request }: ActionFunctionArgs) {
     'jobThumbnail',
     'courseThumbnail',
     'lessonThumbnail',
+    'serviceImage',
   ]);
   const deliverableEndpoints = new Set(['deliverable']);
 

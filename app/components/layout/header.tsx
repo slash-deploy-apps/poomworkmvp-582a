@@ -9,6 +9,7 @@ export function Header({ user, unreadMessages = 0 }: { user?: { id: string; name
   const navLinks = [
     { label: '일거리', href: '/jobs' },
     { label: '전문가찾기', href: '/workers' },
+    { label: '서비스', href: '/services' },
     { label: '교육', href: '/courses' },
   ];
 

@@ -13,6 +13,7 @@
     "db:generate": "pnpm exec drizzle-kit generate",
     "db:migrate": "pnpm exec drizzle-kit migrate",
     "db:push": "pnpm exec drizzle-kit push",
+    "db:seed": "npx tsx app/db/seed-categories.cli.ts",
     "db:studio": "pnpm exec drizzle-kit studio",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
     "format:write": "prettier --write \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",

@@ -22,6 +22,13 @@ export default [
   route('workers', 'routes/workers.tsx'),
   route('workers/:workerId', 'routes/workers-detail.tsx'),
 
+  // Services (품/서비스)
+  route('services', 'routes/services.tsx'),
+  route('services/new', 'routes/services-new.tsx'),
+  route('services/:serviceId', 'routes/services-detail.tsx'),
+  route('services/:serviceId/edit', 'routes/services-edit.tsx'),
+  route('my/services', 'routes/my-services.tsx'),
+
   // Education (교육)
   route('courses', 'routes/courses.tsx'),
   route('courses/new', 'routes/courses-new.tsx'),

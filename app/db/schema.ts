@@ -19,6 +19,7 @@ export const user = sqliteTable('user', (d) => ({
   skills: d.text(),
   location: d.text({ length: 255 }),
   coverImage: d.text({ length: 500 }),
+  videoUrl: d.text({ length: 500 }),
   rating: d.real().default(0).notNull(),
   reviewCount: d.integer({ mode: 'number' }).default(0).notNull(),
   createdAt: d
@@ -221,6 +222,7 @@ export const portfolios = sqliteTable(
     description: d.text().notNull(),
     imageUrl: d.text({ length: 500 }),
     projectUrl: d.text({ length: 500 }),
+    videoUrl: d.text({ length: 500 }),
     skills: d.text(),
     createdAt: d
       .integer({ mode: 'timestamp' })
@@ -510,6 +512,7 @@ export const userRelations = relations(user, ({ many }) => ({
   jobs: many(jobs),
   jobApplications: many(jobApplications),
   portfolios: many(portfolios),
+  services: many(services),
   coursesAsInstructor: many(courses),
   enrollments: many(enrollments),
   paymentsAsPayer: many(payments),
@@ -536,6 +539,7 @@ export const categoriesRelations = relations(categories, ({ one, many }) => ({
   children: many(categories, { relationName: 'categoryHierarchy' }),
   jobs: many(jobs),
   courses: many(courses),
+  services: many(services),
 }));
 
 export const jobsRelations = relations(jobs, ({ one, many }) => ({
@@ -665,6 +669,49 @@ export const messagesRelations = relations(messages, ({ one }) => ({
   job: one(jobs, { fields: [messages.jobId], references: [jobs.id] }),
 }));
 
+// ─── Services (품/서비스) ─────────────────────────────────────────────────
+
+export const services = sqliteTable(
+  'services',
+  (d) => ({
+    id: d
+      .text({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    workerId: d
+      .text({ length: 255 })
+      .notNull()
+      .references(() => user.id),
+    categoryId: d
+      .integer({ mode: 'number' })
+      .references(() => categories.id),
+    title: d.text({ length: 255 }).notNull(),
+    description: d.text().notNull(),
+    thumbnailUrl: d.text({ length: 500 }),
+    videoUrl: d.text({ length: 500 }),
+    price: d.integer({ mode: 'number' }).notNull(),
+    deliveryDays: d.integer({ mode: 'number' }).default(7).notNull(),
+    revisions: d.integer({ mode: 'number' }).default(2).notNull(),
+    tags: d.text(),
+    status: d.text({ length: 20 }).default('active').notNull(),
+    views: d.integer({ mode: 'number' }).default(0).notNull(),
+    orderCount: d.integer({ mode: 'number' }).default(0).notNull(),
+    rating: d.real().default(0).notNull(),
+    reviewCount: d.integer({ mode: 'number' }).default(0).notNull(),
+    createdAt: d
+      .integer({ mode: 'timestamp' })
+      .default(sql`(unixepoch())`)
+      .notNull(),
+    updatedAt: d.integer({ mode: 'timestamp' }).$onUpdate(() => new Date()),
+  }),
+  (t) => [
+    index('services_worker_id_idx').on(t.workerId),
+    index('services_category_id_idx').on(t.categoryId),
+    index('services_status_idx').on(t.status),
+  ],
+);
+
 // ─── Contracts (계약) ─────────────────────────────────────────────────────
 
 export const contracts = sqliteTable(
@@ -732,4 +779,12 @@ export const contractsRelations = relations(contracts, ({ one }) => ({
     relationName: 'contractClient',
   }),
   job: one(jobs, { fields: [contracts.jobId], references: [jobs.id] }),
+}));
+
+export const servicesRelations = relations(services, ({ one }) => ({
+  worker: one(user, { fields: [services.workerId], references: [user.id] }),
+  category: one(categories, {
+    fields: [services.categoryId],
+    references: [categories.id],
+  }),
 }));

@@ -6,6 +6,7 @@ import {
   ScrollRestoration,
   isRouteErrorResponse,
   useLoaderData,
+  useRevalidator,
 } from 'react-router';
 import type { LoaderFunctionArgs, MiddlewareFunction } from 'react-router';
 
@@ -14,6 +15,7 @@ import { Header } from '~/components/layout/header';
 import { Footer } from '~/components/layout/footer';
 import { applyOpenCorsToHeaders } from '~/lib/open-cors';
 import { getUnreadMessagesCount } from '~/lib/messages.server';
+import { useEffect } from 'react';
 
 import './styles/globals.css';
 
@@ -70,6 +72,33 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   const { user, unreadMessages } = useLoaderData<typeof loader>();
+  const revalidator = useRevalidator();
+
+  // Poll unread count every 5s when tab is visible and user is logged in.
+  useEffect(() => {
+    if (!user) return;
+
+    const poll = () => {
+      if (document.visibilityState === 'visible' && revalidator.state === 'idle') {
+        revalidator.revalidate();
+      }
+    };
+
+    const intervalId = setInterval(poll, 5000);
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        poll();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [user, revalidator]);
+
   return (
     <>
       <Header user={user} unreadMessages={unreadMessages} />

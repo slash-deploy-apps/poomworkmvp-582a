@@ -31,6 +31,7 @@ export async function action({ request }: ActionFunctionArgs) {
     const title = (formData.get('portfolioTitle') as string) || '';
     const description = (formData.get('portfolioDescription') as string) || '';
     const projectUrl = formData.get('portfolioProjectUrl') as string | null;
+    const videoUrl = formData.get('portfolioVideoUrl') as string | null;
     const skills = formData.get('portfolioSkills') as string | null;
     if (!title) return { error: '제목은 필수입니다' };
     await db.insert(portfolios).values({
@@ -39,6 +40,7 @@ export async function action({ request }: ActionFunctionArgs) {
       title,
       description,
       projectUrl: projectUrl || null,
+      videoUrl: videoUrl || null,
       skills: skills || null,
     });
     return redirect('/profile/edit');
@@ -50,6 +52,7 @@ export async function action({ request }: ActionFunctionArgs) {
     const title = (formData.get('portfolioTitle') as string) || '';
     const description = (formData.get('portfolioDescription') as string) || '';
     const projectUrl = formData.get('portfolioProjectUrl') as string | null;
+    const videoUrl = formData.get('portfolioVideoUrl') as string | null;
     const skills = formData.get('portfolioSkills') as string | null;
     if (!id) return null;
     await db.update(portfolios).set({
@@ -57,6 +60,7 @@ export async function action({ request }: ActionFunctionArgs) {
       title,
       description,
       projectUrl: projectUrl || null,
+      videoUrl: videoUrl || null,
       skills: skills || null,
     }).where(eq(portfolios.id, id));
     return redirect('/profile/edit');
@@ -76,6 +80,7 @@ export async function action({ request }: ActionFunctionArgs) {
   const location = formData.get('location') as string | null;
   const image = formData.get('image') as string | null;
   const coverImage = formData.get('coverImage') as string | null;
+  const videoUrl = formData.get('videoUrl') as string | null;
 
   await db.update(user).set({
     name: name || null,
@@ -85,6 +90,7 @@ export async function action({ request }: ActionFunctionArgs) {
     location: location || null,
     image: image || null,
     coverImage: coverImage || null,
+    videoUrl: videoUrl || null,
     updatedAt: new Date(),
   }).where(eq(user.id, session.user.id));
   return redirect('/dashboard');
@@ -216,6 +222,17 @@ export default function ProfileEdit() {
             </div>
           </div>
 
+          <div className="relative">
+            <label className="block text-sm font-medium text-[#635F69] mb-1">프로필 동영상 (YouTube/Vimeo URL)</label>
+            <input
+              name="videoUrl"
+              type="url"
+              defaultValue={u.videoUrl || ''}
+              placeholder="https://youtube.com/watch?v=... 또는 https://vimeo.com/..."
+              className="w-full bg-[#EDE9FE] rounded-t-xl border-0 border-b-2 border-gray-400 h-14 px-4 text-[#332F3A] placeholder:text-gray-400 focus:border-[#7C3AED] focus:outline-none transition-colors duration-300"
+            />
+          </div>
+
           <div className="flex gap-3 pt-4">
             <Button
               type="submit"
@@ -341,6 +358,17 @@ function PortfolioForm({ portfolio, onClose }: { portfolio?: any; onClose: () =>
             type="url"
             defaultValue={portfolio?.projectUrl || ''}
             placeholder="https://..."
+            className="w-full bg-[#EDE9FE] rounded-[20px] h-12 px-4 text-[#332F3A] placeholder:text-gray-400 focus:border-[#7C3AED] focus:outline-none transition-colors duration-300"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-[#635F69] mb-1">동영상 URL (YouTube/Vimeo)</label>
+          <input
+            name="portfolioVideoUrl"
+            type="url"
+            defaultValue={portfolio?.videoUrl || ''}
+            placeholder="https://youtube.com/watch?v=... 또는 https://vimeo.com/..."
             className="w-full bg-[#EDE9FE] rounded-[20px] h-12 px-4 text-[#332F3A] placeholder:text-gray-400 focus:border-[#7C3AED] focus:outline-none transition-colors duration-300"
           />
         </div>
