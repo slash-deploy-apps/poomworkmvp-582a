@@ -1,13 +1,14 @@
 import { redirect, useLoaderData } from 'react-router';
 import type { MetaFunction, LoaderFunctionArgs, ActionFunctionArgs } from 'react-router';
-import { eq, desc, sql, or } from 'drizzle-orm';
-import { Users, Briefcase, BookOpen, CreditCard } from 'lucide-react';
+import { eq, desc, sql, or, inArray } from 'drizzle-orm';
+import { Users, Briefcase, BookOpen, CreditCard, ShieldCheck, ExternalLink, Scale } from 'lucide-react';
 import { Badge } from '~/components/ui/badge';
 import { Button } from '~/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs';
 import { db } from '~/lib/db.server';
-import { user, jobs, courses, payments } from '~/db/schema';
+import { user, jobs, courses, payments, certifications, disputes, contracts } from '~/db/schema';
 import { auth } from '~/lib/auth.server';
+import { resolveDispute } from '~/lib/dispute.server';
 import { useState } from 'react';
 
 export const meta: MetaFunction = () => [{ title: '관리자 - poomwork' }];
@@ -48,7 +49,36 @@ export async function loader({ request }: LoaderFunctionArgs) {
     ...p,
     courseTitle: p.type === 'course_purchase' ? courseMap[p.courseId as string] : null,
   }));
-  return { stats: { users: userCount?.count ?? 0, jobs: jobCount?.count ?? 0, courses: courseCount?.count ?? 0, revenue: revenue?.total ?? 0 }, allUsers, allJobs, allCourses, allPayments };
+  const pendingCertsRaw = await db
+    .select()
+    .from(certifications)
+    .leftJoin(user, eq(certifications.userId, user.id))
+    .where(eq(certifications.status, 'pending'))
+    .orderBy(desc(certifications.createdAt))
+    .limit(50);
+  const pendingCerts = pendingCertsRaw.map((row) => ({
+    ...row.certifications,
+    userName: row.user?.name ?? null,
+    userEmail: row.user?.email ?? null,
+  }));
+
+  const pendingDisputesRaw = await db
+    .select()
+    .from(disputes)
+    .leftJoin(user, eq(disputes.raisedBy, user.id))
+    .leftJoin(contracts, eq(disputes.contractId, contracts.id))
+    .where(inArray(disputes.status, ['open', 'reviewing']))
+    .orderBy(desc(disputes.createdAt))
+    .limit(50);
+
+  const pendingDisputes = pendingDisputesRaw.map((row) => ({
+    ...row.disputes,
+    raiserName: row.user?.name ?? null,
+    raiserEmail: row.user?.email ?? null,
+    contractAmount: row.contracts?.amount ?? null,
+  }));
+
+  return { stats: { users: userCount?.count ?? 0, jobs: jobCount?.count ?? 0, courses: courseCount?.count ?? 0, revenue: revenue?.total ?? 0 }, allUsers, allJobs, allCourses, allPayments, pendingCerts, pendingDisputes };
 }
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -71,6 +101,30 @@ export async function action({ request }: ActionFunctionArgs) {
   } else if (actionType === 'releaseEscrow') {
     const paymentId = formData.get('paymentId') as string;
     await db.update(payments).set({ status: 'escrow_released', escrowReleasedAt: new Date() }).where(eq(payments.id, paymentId));
+  } else if (actionType === 'resolveDispute') {
+    const disputeId = formData.get('disputeId') as string;
+    const resolution = formData.get('resolution') as 'refund_full' | 'refund_partial' | 'pay_worker' | 'cancel_dispute';
+    const refundAmountStr = formData.get('refundAmount') as string | null;
+    const adminNote = (formData.get('adminNote') as string) || undefined;
+    const refundAmount = refundAmountStr ? parseInt(refundAmountStr, 10) : undefined;
+    await resolveDispute({ disputeId, adminId: session.user.id, resolution, refundAmount, adminNote });
+  } else if (actionType === 'approveCertification') {
+    const certId = formData.get('certificationId') as string;
+    await db.update(certifications).set({
+      status: 'approved',
+      reviewedBy: session.user.id,
+      reviewedAt: new Date(),
+      reviewNote: null,
+    }).where(eq(certifications.id, certId));
+  } else if (actionType === 'rejectCertification') {
+    const certId = formData.get('certificationId') as string;
+    const reviewNote = (formData.get('reviewNote') as string) || '반려';
+    await db.update(certifications).set({
+      status: 'rejected',
+      reviewedBy: session.user.id,
+      reviewedAt: new Date(),
+      reviewNote,
+    }).where(eq(certifications.id, certId));
   }
   return null;
 }
@@ -87,9 +141,27 @@ const statusLabels: Record<string, { label: string; color: string }> = {
   cancelled: { label: '취소', color: 'bg-gray-100 text-[#332F3A]' },
 };
 
+const CERT_TYPE_LABELS: Record<string, string> = {
+  license: '자격증',
+  business: '사업자등록',
+  education: '학력',
+  identity: '신분확인',
+};
+
+const RESOLUTION_LABELS: Record<string, string> = {
+  refund_full: '전액 환불',
+  refund_partial: '부분 환불',
+  pay_worker: '전문가 정산',
+  cancel_dispute: '분쟁 취소',
+};
+
 export default function Admin() {
-  const { stats, allUsers, allJobs, allCourses, allPayments } = useLoaderData<typeof loader>();
+  const { stats, allUsers, allJobs, allCourses, allPayments, pendingCerts, pendingDisputes } = useLoaderData<typeof loader>();
   const [statusFilter, setStatusFilter] = useState<string>('전체');
+  const [rejectNotes, setRejectNotes] = useState<Record<string, string>>({});
+  const [disputeResolutions, setDisputeResolutions] = useState<Record<string, string>>({});
+  const [disputeRefundAmounts, setDisputeRefundAmounts] = useState<Record<string, string>>({});
+  const [disputeNotes, setDisputeNotes] = useState<Record<string, string>>({});
 
   const filteredPayments = statusFilter === '전체' ? allPayments : allPayments.filter((p: any) => p.status === statusFilter);
   const statusCounts = {
@@ -113,7 +185,24 @@ export default function Admin() {
       </div>
 
       <Tabs defaultValue='users'>
-        <TabsList className='mb-6 bg-gray-100 rounded-[20px]'><TabsTrigger value='users'>사용자</TabsTrigger><TabsTrigger value='jobs'>일거리</TabsTrigger><TabsTrigger value='courses'>강좌</TabsTrigger><TabsTrigger value='payments'>결제</TabsTrigger></TabsList>
+        <TabsList className='mb-6 bg-gray-100 rounded-[20px]'>
+          <TabsTrigger value='users'>사용자</TabsTrigger>
+          <TabsTrigger value='jobs'>일거리</TabsTrigger>
+          <TabsTrigger value='courses'>강좌</TabsTrigger>
+          <TabsTrigger value='payments'>결제</TabsTrigger>
+          <TabsTrigger value='certifications' className='flex items-center gap-1'>
+            <ShieldCheck className='h-3.5 w-3.5' />인증 승인
+            {pendingCerts.length > 0 && (
+              <span className='ml-1 bg-[#DB2777] text-white text-xs rounded-full px-1.5 py-0.5 leading-none'>{pendingCerts.length}</span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value='disputes' className='flex items-center gap-1'>
+            <Scale className='h-3.5 w-3.5' />분쟁 중재
+            {pendingDisputes.length > 0 && (
+              <span className='ml-1 bg-orange-500 text-white text-xs rounded-full px-1.5 py-0.5 leading-none'>{pendingDisputes.length}</span>
+            )}
+          </TabsTrigger>
+        </TabsList>
 
         <TabsContent value='users'>
           <div className='bg-[#EDE9FE] rounded-[32px] overflow-hidden'>
@@ -188,6 +277,156 @@ export default function Admin() {
             </tbody>
             </table>
           </div>
+        </TabsContent>
+        <TabsContent value='certifications'>
+          {pendingCerts.length === 0 ? (
+            <div className='text-center py-12 text-[#635F69]'>
+              <ShieldCheck className='h-12 w-12 mx-auto mb-3 text-[#7C3AED]/30' />
+              <p>검토 대기 중인 인증이 없습니다</p>
+            </div>
+          ) : (
+            <div className='space-y-4'>
+              {pendingCerts.map((cert) => (
+                <div key={cert.id} className='bg-[#EDE9FE] rounded-[24px] p-5'>
+                  <div className='flex items-start justify-between gap-4'>
+                    <div className='flex-1 min-w-0'>
+                      <div className='flex items-center gap-2 mb-1'>
+                        <span className='text-xs bg-white rounded-[12px] px-2 py-0.5 text-[#635F69] font-medium'>
+                          {CERT_TYPE_LABELS[cert.type] ?? cert.type}
+                        </span>
+                        <span className='text-xs text-[#635F69]'>
+                          {cert.userName ?? '-'} ({cert.userEmail})
+                        </span>
+                      </div>
+                      <p className='font-semibold text-[#332F3A]'>{cert.title}</p>
+                      {cert.issuer && <p className='text-sm text-[#635F69]'>{cert.issuer}</p>}
+                      {cert.issuedAt && <p className='text-xs text-[#635F69]'>발급일: {cert.issuedAt}</p>}
+                      <a
+                        href={cert.fileUrl}
+                        target='_blank'
+                        rel='noopener noreferrer'
+                        className='inline-flex items-center gap-1 text-sm text-[#7C3AED] hover:underline mt-2'
+                      >
+                        <ExternalLink className='h-3.5 w-3.5' />파일 확인
+                      </a>
+                    </div>
+                    <div className='flex flex-col gap-2 shrink-0'>
+                      <form method='post'>
+                        <input type='hidden' name='_action' value='approveCertification' />
+                        <input type='hidden' name='certificationId' value={cert.id} />
+                        <Button type='submit' size='sm' className='bg-emerald-600 hover:bg-emerald-700 text-white rounded-[20px] text-xs h-8 px-4 active:scale-[0.92] transition-all duration-200'>
+                          승인
+                        </Button>
+                      </form>
+                      <form method='post' className='flex flex-col gap-1'>
+                        <input type='hidden' name='_action' value='rejectCertification' />
+                        <input type='hidden' name='certificationId' value={cert.id} />
+                        <input
+                          name='reviewNote'
+                          type='text'
+                          placeholder='반려 사유 (선택)'
+                          value={rejectNotes[cert.id] ?? ''}
+                          onChange={(e) => setRejectNotes((prev) => ({ ...prev, [cert.id]: e.target.value }))}
+                          className='bg-white rounded-[12px] border border-red-200 text-xs px-2 py-1 w-36 focus:outline-none focus:border-red-400'
+                        />
+                        <Button type='submit' size='sm' variant='outline' className='border-red-300 text-red-600 hover:bg-red-50 rounded-[20px] text-xs h-8 active:scale-[0.92] transition-all duration-200'>
+                          반려
+                        </Button>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+        <TabsContent value='disputes'>
+          {pendingDisputes.length === 0 ? (
+            <div className='text-center py-12 text-[#635F69]'>
+              <Scale className='h-12 w-12 mx-auto mb-3 text-[#7C3AED]/30' />
+              <p>처리 대기 중인 분쟁이 없습니다</p>
+            </div>
+          ) : (
+            <div className='space-y-4'>
+              {pendingDisputes.map((dispute) => {
+                const resolution = disputeResolutions[dispute.id] ?? 'refund_full';
+                return (
+                  <div key={dispute.id} className='bg-[#EDE9FE] rounded-[24px] p-5'>
+                    <div className='flex items-start justify-between gap-4 mb-3'>
+                      <div className='flex-1 min-w-0'>
+                        <div className='flex items-center gap-2 mb-1'>
+                          <span className='text-xs bg-orange-100 text-orange-700 rounded-[12px] px-2 py-0.5 font-medium'>
+                            {dispute.raisedRole === 'worker' ? '전문가 제기' : '발주자 제기'}
+                          </span>
+                          <span className='text-xs text-[#635F69]'>{dispute.raiserName ?? '-'} ({dispute.raiserEmail})</span>
+                        </div>
+                        {dispute.contractAmount !== null && (
+                          <p className='text-sm font-semibold text-[#332F3A]'>계약 금액: {new Intl.NumberFormat('ko-KR').format(dispute.contractAmount)}원</p>
+                        )}
+                        <p className='text-sm text-[#332F3A] mt-2 whitespace-pre-wrap'>{dispute.reason}</p>
+                        {dispute.evidenceFiles && (
+                          <div className='mt-2 flex flex-wrap gap-2'>
+                            {(JSON.parse(dispute.evidenceFiles) as string[]).map((url, i) => (
+                              <a key={i} href={url} target='_blank' rel='noopener noreferrer' className='inline-flex items-center gap-1 text-xs text-[#7C3AED] hover:underline'>
+                                <ExternalLink className='h-3 w-3' />증거{i + 1}
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <form method='post' className='space-y-3 bg-white rounded-[16px] p-4'>
+                      <input type='hidden' name='_action' value='resolveDispute' />
+                      <input type='hidden' name='disputeId' value={dispute.id} />
+                      <div className='flex flex-wrap gap-2 items-end'>
+                        <div>
+                          <label className='block text-xs text-[#635F69] mb-1'>처리 방식</label>
+                          <select
+                            name='resolution'
+                            value={resolution}
+                            onChange={(e) => setDisputeResolutions((p) => ({ ...p, [dispute.id]: e.target.value }))}
+                            className='bg-[#EDE9FE] rounded-t-xl border-0 border-b-2 border-gray-400 text-sm px-3 py-1.5'
+                          >
+                            {Object.entries(RESOLUTION_LABELS).map(([val, label]) => (
+                              <option key={val} value={val}>{label}</option>
+                            ))}
+                          </select>
+                        </div>
+                        {resolution === 'refund_partial' && (
+                          <div>
+                            <label className='block text-xs text-[#635F69] mb-1'>환불 금액 (원)</label>
+                            <input
+                              type='number'
+                              name='refundAmount'
+                              min={1}
+                              value={disputeRefundAmounts[dispute.id] ?? ''}
+                              onChange={(e) => setDisputeRefundAmounts((p) => ({ ...p, [dispute.id]: e.target.value }))}
+                              placeholder='부분 환불 금액'
+                              className='bg-[#EDE9FE] rounded-t-xl border-0 border-b-2 border-gray-400 text-sm px-3 py-1.5 w-36'
+                            />
+                          </div>
+                        )}
+                        <div className='flex-1 min-w-40'>
+                          <label className='block text-xs text-[#635F69] mb-1'>관리자 메모 (선택)</label>
+                          <input
+                            type='text'
+                            name='adminNote'
+                            value={disputeNotes[dispute.id] ?? ''}
+                            onChange={(e) => setDisputeNotes((p) => ({ ...p, [dispute.id]: e.target.value }))}
+                            placeholder='처리 사유 또는 메모'
+                            className='bg-[#EDE9FE] rounded-t-xl border-0 border-b-2 border-gray-400 text-sm px-3 py-1.5 w-full'
+                          />
+                        </div>
+                        <Button type='submit' className='bg-[#7C3AED] hover:bg-[#5a3d95] text-white rounded-[20px] text-sm h-9 px-5 active:scale-[0.92] transition-all duration-200'>
+                          처리 완료
+                        </Button>
+                      </div>
+                    </form>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

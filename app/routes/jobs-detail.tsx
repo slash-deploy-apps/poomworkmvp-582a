@@ -13,6 +13,8 @@ import { StarRating } from '~/components/ui/star-rating';
 import { db } from '~/lib/db.server';
 import { jobs, user, jobApplications, categories, reviews } from '~/db/schema';
 import { auth } from '~/lib/auth.server';
+import { recommendWorkersForJob } from '~/lib/recommend.server';
+import type { RecommendedWorker } from '~/lib/recommend.server';
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
   const session = await auth.api.getSession({ headers: request.headers });
@@ -43,7 +45,13 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
   }
   const reviewList = await db.select({ id: reviews.id, rating: reviews.rating, comment: reviews.comment, createdAt: reviews.createdAt, reviewerName: user.name, reviewerImage: user.image, reviewerId: reviews.reviewerId })
     .from(reviews).leftJoin(user, eq(reviews.reviewerId, user.id)).where(eq(reviews.jobId, params.jobId!)).orderBy(desc(reviews.createdAt));
-  return { job: job[0], client: client[0] || null, category: category[0] || null, user: session?.user ?? null, hasApplied, reviews: reviewList, applications };
+
+  const isJobOwner = session?.user && session.user.id === job[0].clientId;
+  const recommendedWorkers: RecommendedWorker[] = isJobOwner
+    ? await recommendWorkersForJob(params.jobId!, 4)
+    : [];
+
+  return { job: job[0], client: client[0] || null, category: category[0] || null, user: session?.user ?? null, hasApplied, reviews: reviewList, applications, recommendedWorkers };
 }
 
 export async function action({ request, params }: ActionFunctionArgs) {
@@ -92,7 +100,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 export const meta: MetaFunction<typeof loader> = ({ data }) => [{ title: `${data?.job?.title || '일거리'} - poomwork` }];
 
 export default function JobDetail() {
-  const { job, client, category, user: currentUser, hasApplied, reviews: reviewList, applications } = useLoaderData<typeof loader>();
+  const { job, client, category, user: currentUser, hasApplied, reviews: reviewList, applications, recommendedWorkers } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const [reviewRating, setReviewRating] = useState(0);
   const [showApplyForm, setShowApplyForm] = useState(false);
@@ -208,6 +216,58 @@ export default function JobDetail() {
                     </div>
                     {r.comment && <p className='text-sm text-[#332F3A] whitespace-pre-wrap'>{r.comment}</p>}
                   </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Recommended workers — visible only to the job owner */}
+          {currentUser && currentUser.id === job.clientId && (recommendedWorkers as RecommendedWorker[]).length > 0 && (
+            <div>
+              <h2 className='text-lg font-extrabold text-[#332F3A] mb-3' style={{ fontFamily: "'Nunito', sans-serif" }}>
+                ✨ 이 일에 추천되는 전문가
+              </h2>
+              <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
+                {(recommendedWorkers as RecommendedWorker[]).map((w) => (
+                  <Link
+                    key={w.id}
+                    to={`/workers/${w.id}`}
+                    className='bg-white/70 backdrop-blur-xl rounded-[24px] shadow-clay-card p-5 hover:-translate-y-1 hover:shadow-clay-card-hover transition-all duration-200 flex items-start gap-3'
+                  >
+                    <div className='w-10 h-10 rounded-[20px] bg-[#EDE9FE] flex items-center justify-center text-[#7C3AED] font-bold text-sm shrink-0 overflow-hidden'>
+                      {w.image ? (
+                        <img src={w.image} alt='' className='w-full h-full object-cover' />
+                      ) : (
+                        (w.name || '?')[0]
+                      )}
+                    </div>
+                    <div className='flex-1 min-w-0'>
+                      <div className='font-bold text-[#332F3A] truncate' style={{ fontFamily: "'Nunito', sans-serif" }}>
+                        {w.name || '익명'}
+                      </div>
+                      <div className='flex items-center gap-2 text-xs text-[#635F69] mb-2'>
+                        {w.rating > 0 && (
+                          <span className='flex items-center gap-0.5'>
+                            <Star className='h-3 w-3 text-yellow-400 fill-yellow-400' />
+                            {w.rating}
+                          </span>
+                        )}
+                        <span className='text-[#7C3AED] font-medium'>신뢰점수 {w.trustScore}</span>
+                      </div>
+                      {w.matchedSkills.length > 0 && (
+                        <div className='flex flex-wrap gap-1'>
+                          {w.matchedSkills.slice(0, 3).map((skill) => (
+                            <span
+                              key={skill}
+                              className='bg-[#EDE9FE] text-[#7C3AED] rounded-full px-2.5 py-1 text-xs font-medium'
+                            >
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </Link>
                 ))}
               </div>
             </div>

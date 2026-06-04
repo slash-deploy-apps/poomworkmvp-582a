@@ -2,9 +2,9 @@ import { Link, useLoaderData } from 'react-router';
 import type { MetaFunction } from 'react-router';
 import { Code, Palette, Megaphone, Video, Languages, GraduationCap, Lightbulb, MoreHorizontal, ArrowRight, Users, FolderOpen, BookOpen, Star, Search, Shield, CheckCircle } from 'lucide-react';
 import { Button } from '~/components/ui/button';
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, or } from 'drizzle-orm';
 import { db } from '~/lib/db.server';
-import { courses, user } from '~/db/schema';
+import { courses, user, jobs } from '~/db/schema';
 
 export const meta: MetaFunction = () => [{ title: 'poomwork - 전문가와 일거리를 연결하는 플랫폼' }];
 
@@ -19,6 +19,13 @@ const categories = [
   { name: '기타', icon: MoreHorizontal, gradient: 'from-slate-400 to-slate-600' },
 ];
 
+function parseTagSet(text: string | null | undefined): Set<string> {
+  if (!text) return new Set();
+  return new Set(
+    text.split(/[,\s·]+/).map((t) => t.trim().toLowerCase()).filter(Boolean),
+  );
+}
+
 export async function loader() {
   const featuredCourses = await db
     .select({
@@ -28,6 +35,7 @@ export async function loader() {
       level: courses.level,
       enrollmentCount: courses.enrollmentCount,
       thumbnailUrl: courses.thumbnailUrl,
+      tags: courses.tags,
       instructorName: user.name,
     })
     .from(courses)
@@ -35,7 +43,34 @@ export async function loader() {
     .where(eq(courses.status, 'published'))
     .orderBy(desc(courses.enrollmentCount))
     .limit(3);
-  return { featuredCourses };
+
+  // Count open/active jobs that match each course's tags
+  const openJobs = await db
+    .select({ id: jobs.id, tags: jobs.tags })
+    .from(jobs)
+    .where(or(eq(jobs.status, 'open'), eq(jobs.status, 'active')));
+
+  const courseJobCounts: Record<string, number> = {};
+  for (const course of featuredCourses) {
+    const courseTags = parseTagSet(course.tags);
+    if (courseTags.size === 0) {
+      courseJobCounts[course.id] = 0;
+      continue;
+    }
+    let count = 0;
+    for (const job of openJobs) {
+      const jobTags = parseTagSet(job.tags);
+      for (const tag of courseTags) {
+        if (jobTags.has(tag)) {
+          count++;
+          break;
+        }
+      }
+    }
+    courseJobCounts[course.id] = count;
+  }
+
+  return { featuredCourses, courseJobCounts };
 }
 
 const levelLabel: Record<string, string> = {
@@ -48,7 +83,7 @@ const formatPrice = (price: number) =>
   price === 0 ? '무료' : `${new Intl.NumberFormat('ko-KR').format(price)}원`;
 
 export default function Index() {
-  const { featuredCourses } = useLoaderData<typeof loader>();
+  const { featuredCourses, courseJobCounts } = useLoaderData<typeof loader>();
   const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -221,12 +256,17 @@ export default function Index() {
                       )}
                     </div>
                     <h3 className='font-bold text-lg mb-2 text-white line-clamp-2' style={{ fontFamily: "'Nunito', sans-serif" }}>{course.title}</h3>
-                    <div className='flex items-center justify-between'>
+                    <div className='flex items-center justify-between mb-1'>
                       <span className='text-sm text-purple-100'>
                         {levelLabel[course.level] ?? course.level} · {course.enrollmentCount}명
                       </span>
                       <span className='font-bold text-white'>{formatPrice(course.price)}</span>
                     </div>
+                    {(courseJobCounts[course.id] ?? 0) > 0 && (
+                      <p className='text-xs text-purple-200'>
+                        👉 관련 일감 {courseJobCounts[course.id]}개
+                      </p>
+                    )}
                   </div>
                 </Link>
               ))}

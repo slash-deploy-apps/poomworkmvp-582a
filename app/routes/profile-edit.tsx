@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { Link, redirect, useLoaderData, useNavigate } from 'react-router';
 import type { MetaFunction, LoaderFunctionArgs, ActionFunctionArgs } from 'react-router';
 import { eq, desc } from 'drizzle-orm';
-import { User, MapPin, Phone, FileText, Briefcase, ArrowLeft, Plus, Pencil, Trash2 } from 'lucide-react';
+import { User, MapPin, Phone, FileText, Briefcase, ArrowLeft, Plus, Pencil, Trash2, ShieldCheck, ExternalLink } from 'lucide-react';
 import { Button } from '~/components/ui/button';
 import { ImageUploader } from '~/components/image-uploader';
+import { UploadButton } from '~/lib/uploadthing';
 import { db } from '~/lib/db.server';
-import { user, portfolios } from '~/db/schema';
+import { user, portfolios, certifications } from '~/db/schema';
 import { auth } from '~/lib/auth.server';
 
 export const meta: MetaFunction = () => [{ title: '프로필 편집 - poomwork' }];
@@ -17,7 +18,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const u = await db.select().from(user).where(eq(user.id, session.user.id)).get();
   if (!u) return redirect('/login');
   const userPortfolios = await db.select().from(portfolios).where(eq(portfolios.workerId, session.user.id)).orderBy(desc(portfolios.createdAt)).all();
-  return { user: u, portfolios: userPortfolios };
+  const userCertifications = await db.select().from(certifications).where(eq(certifications.userId, session.user.id)).orderBy(desc(certifications.createdAt)).all();
+  return { user: u, portfolios: userPortfolios, certifications: userCertifications };
 }
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -73,6 +75,35 @@ export async function action({ request }: ActionFunctionArgs) {
     return redirect('/profile/edit');
   }
 
+  if (_action === 'addCertification') {
+    const type = formData.get('certType') as string;
+    const title = (formData.get('certTitle') as string) || '';
+    const issuer = (formData.get('certIssuer') as string) || null;
+    const issuedAt = (formData.get('certIssuedAt') as string) || null;
+    const fileUrl = (formData.get('certFileUrl') as string) || '';
+    if (!type || !title || !fileUrl) return { error: '유형, 제목, 파일은 필수입니다' };
+    await db.insert(certifications).values({
+      userId: session.user.id,
+      type,
+      title,
+      issuer: issuer || null,
+      issuedAt: issuedAt || null,
+      fileUrl,
+      status: 'pending',
+    });
+    return redirect('/profile/edit');
+  }
+
+  if (_action === 'deleteCertification') {
+    const id = formData.get('certId') as string;
+    if (!id) return null;
+    const cert = await db.select().from(certifications).where(eq(certifications.id, id)).get();
+    if (!cert || cert.userId !== session.user.id) return null;
+    if (cert.status === 'approved') return { error: '승인된 인증은 삭제할 수 없습니다' };
+    await db.delete(certifications).where(eq(certifications.id, id));
+    return redirect('/profile/edit');
+  }
+
   const name = formData.get('name') as string | null;
   const phone = formData.get('phone') as string | null;
   const bio = formData.get('bio') as string | null;
@@ -100,12 +131,14 @@ export default function ProfileEdit() {
   const data = useLoaderData<typeof loader>();
   const u = data.user as any;
   const userPortfolios = (data.portfolios || []) as any[];
+  const userCertifications = (data.certifications || []) as any[];
   const navigate = useNavigate();
 
   const [profileImage, setProfileImage] = useState<string | null>(u.image || null);
   const [coverImg, setCoverImg] = useState<string | null>(u.coverImage || null);
   const [showPortfolioForm, setShowPortfolioForm] = useState(false);
   const [editingPortfolio, setEditingPortfolio] = useState<any>(null);
+  const [showCertForm, setShowCertForm] = useState(false);
 
   return (
     <div className="min-h-screen bg-[#F4F1FA]">
@@ -253,6 +286,66 @@ export default function ProfileEdit() {
 
         <div className="mt-10">
           <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-[#332F3A] flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-[#7C3AED]" />자격·인증
+            </h2>
+            <Button
+              type="button"
+              onClick={() => setShowCertForm(true)}
+              className="bg-[#7C3AED] hover:bg-[#5a3d95] text-white rounded-[20px] h-11 text-sm font-medium active:scale-[0.92] transition-all duration-200"
+            >
+              <Plus className="h-4 w-4 mr-1" /> 추가
+            </Button>
+          </div>
+
+          {showCertForm && (
+            <CertificationForm onClose={() => setShowCertForm(false)} />
+          )}
+
+          <div className="space-y-3">
+            {userCertifications.length === 0 && (
+              <p className="text-sm text-[#635F69] text-center py-4">등록된 인증이 없습니다</p>
+            )}
+            {userCertifications.map((c: any) => (
+              <div key={c.id} className="bg-white/60 backdrop-blur-xl rounded-[24px] p-4 shadow-clayCard flex items-center justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`px-2 py-0.5 rounded-[12px] text-xs font-medium ${
+                      c.status === 'approved' ? 'bg-emerald-100 text-emerald-700' :
+                      c.status === 'rejected' ? 'bg-red-100 text-red-600' :
+                      'bg-yellow-100 text-yellow-700'
+                    }`}>
+                      {c.status === 'approved' ? '✓ 승인됨' : c.status === 'rejected' ? '✗ 반려됨' : '⏳ 검토 중'}
+                    </span>
+                    <span className="text-xs text-[#635F69]">{CERT_TYPE_LABELS[c.type as keyof typeof CERT_TYPE_LABELS] ?? c.type}</span>
+                  </div>
+                  <p className="font-medium text-[#332F3A] text-sm truncate">{c.title}</p>
+                  {c.issuer && <p className="text-xs text-[#635F69]">{c.issuer}</p>}
+                  {c.status === 'rejected' && c.reviewNote && (
+                    <p className="text-xs text-red-500 mt-1">반려 사유: {c.reviewNote}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <a href={c.fileUrl} target="_blank" rel="noopener noreferrer" className="p-1 hover:text-[#7C3AED] text-[#635F69] transition-colors">
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                  {c.status !== 'approved' && (
+                    <form method="post">
+                      <input type="hidden" name="_action" value="deleteCertification" />
+                      <input type="hidden" name="certId" value={c.id} />
+                      <button type="submit" className="p-1 hover:text-red-500 text-[#635F69] transition-colors">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </form>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-10">
+          <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-[#332F3A]">포트폴리오</h2>
             <Button
               type="button"
@@ -390,6 +483,115 @@ function PortfolioForm({ portfolio, onClose }: { portfolio?: any; onClose: () =>
             className="flex-1 bg-[#7C3AED] hover:bg-[#5a3d95] text-white rounded-[20px] h-12 text-base font-medium active:scale-[0.92] transition-all duration-200"
           >
             {portfolio ? '수정하기' : '추가하기'}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            className="flex-1 rounded-[20px] h-12 text-base font-medium border-[#7C3AED] text-[#332F3A] hover:bg-[#EDE9FE] active:scale-[0.92] transition-all duration-200"
+          >
+            취소
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+const CERT_TYPE_LABELS = {
+  license: '자격증',
+  business: '사업자등록',
+  education: '학력',
+  identity: '신분확인',
+} as const;
+
+function CertificationForm({ onClose }: { onClose: () => void }) {
+  const [fileUrl, setFileUrl] = useState<string | null>(null);
+
+  return (
+    <div className="bg-white/60 backdrop-blur-xl rounded-[24px] p-6 shadow-clayCard mb-4">
+      <h3 className="text-lg font-semibold text-[#332F3A] mb-4">인증 추가</h3>
+      <form method="post" className="space-y-4">
+        <input type="hidden" name="_action" value="addCertification" />
+        <input type="hidden" name="certFileUrl" value={fileUrl || ''} />
+
+        <div>
+          <label className="block text-sm font-medium text-[#635F69] mb-1">유형 *</label>
+          <select
+            name="certType"
+            required
+            className="w-full bg-[#EDE9FE] rounded-[20px] h-12 px-4 text-[#332F3A] focus:outline-none transition-colors duration-300"
+          >
+            <option value="">유형 선택</option>
+            {Object.entries(CERT_TYPE_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-[#635F69] mb-1">제목 *</label>
+          <input
+            name="certTitle"
+            type="text"
+            required
+            placeholder="예: 정보처리기사"
+            className="w-full bg-[#EDE9FE] rounded-[20px] h-12 px-4 text-[#332F3A] placeholder:text-gray-400 focus:outline-none transition-colors duration-300"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-[#635F69] mb-1">발급 기관</label>
+          <input
+            name="certIssuer"
+            type="text"
+            placeholder="예: 한국산업인력공단"
+            className="w-full bg-[#EDE9FE] rounded-[20px] h-12 px-4 text-[#332F3A] placeholder:text-gray-400 focus:outline-none transition-colors duration-300"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-[#635F69] mb-1">발급일</label>
+          <input
+            name="certIssuedAt"
+            type="date"
+            className="w-full bg-[#EDE9FE] rounded-[20px] h-12 px-4 text-[#332F3A] focus:outline-none transition-colors duration-300"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-[#635F69] mb-2">인증 파일 * (이미지 또는 PDF, 최대 4MB)</label>
+          {fileUrl ? (
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-emerald-600 font-medium">✓ 파일 업로드 완료</span>
+              <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-[#7C3AED] hover:underline flex items-center gap-1">
+                <ExternalLink className="h-3 w-3" />미리보기
+              </a>
+              <button type="button" onClick={() => setFileUrl(null)} className="text-sm text-red-500 hover:underline">제거</button>
+            </div>
+          ) : (
+            <UploadButton
+              endpoint="certificationFile"
+              onClientUploadComplete={(res) => {
+                if (res?.[0]?.ufsUrl) setFileUrl(res[0].ufsUrl);
+                else if (res?.[0]?.url) setFileUrl(res[0].url);
+              }}
+              onUploadError={(err: Error) => alert(`업로드 오류: ${err.message}`)}
+              appearance={{
+                button: 'bg-[#7C3AED] hover:bg-[#5a3d95] text-white rounded-[20px] h-11 px-6 text-sm font-medium active:scale-[0.92] transition-all duration-200',
+                allowedContent: 'text-xs text-[#635F69] mt-1',
+              }}
+            />
+          )}
+        </div>
+
+        <div className="flex gap-3">
+          <Button
+            type="submit"
+            disabled={!fileUrl}
+            className="flex-1 bg-[#7C3AED] hover:bg-[#5a3d95] text-white rounded-[20px] h-12 text-base font-medium active:scale-[0.92] transition-all duration-200 disabled:opacity-50"
+          >
+            등록하기
           </Button>
           <Button
             type="button"

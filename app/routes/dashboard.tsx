@@ -1,13 +1,15 @@
 import { Link, redirect, useLoaderData } from 'react-router';
 import type { MetaFunction, LoaderFunctionArgs, ActionFunctionArgs } from 'react-router';
 import { eq, desc, inArray } from 'drizzle-orm';
-import { Briefcase, Users, BookOpen, CreditCard, GraduationCap, Plus, Receipt } from 'lucide-react';
+import { Briefcase, Users, BookOpen, CreditCard, GraduationCap, Plus, Receipt, ArrowRight, Star } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
 import { Badge } from '~/components/ui/badge';
 import { Button } from '~/components/ui/button';
 import { db } from '~/lib/db.server';
 import { jobs, jobApplications, enrollments, courses, user, payments } from '~/db/schema';
 import { auth } from '~/lib/auth.server';
+import { recommendJobsForWorker, recommendWorkersForClient } from '~/lib/recommend.server';
+import type { RecommendedJob, RecommendedWorker } from '~/lib/recommend.server';
 
 export const meta: MetaFunction = () => [{ title: '대시보드 - poomwork' }];
 
@@ -77,6 +79,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
         referenceId: payments.referenceId,
         createdAt: payments.createdAt,
       }).from(payments).where(eq(payments.payeeId, u.id)).orderBy(desc(payments.createdAt));
+
+      data.recommendedJobs = await recommendJobsForWorker(u.id, 4);
     }
 
     if (u.role === 'client') {
@@ -115,6 +119,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
         referenceId: payments.referenceId,
         createdAt: payments.createdAt,
       }).from(payments).where(eq(payments.payerId, u.id)).orderBy(desc(payments.createdAt));
+
+      data.recommendedWorkers = await recommendWorkersForClient(u.id, 4);
     }
 
     if (u.role === 'admin') {
@@ -215,6 +221,87 @@ export default function Dashboard() {
 
       {u.role === 'worker' && (
         <>
+          {(data.applications as any[])?.length === 0 && (data.enrollments as any[])?.length === 0 && (
+            <div className='mb-8 bg-gradient-to-br from-[#EDE9FE] to-[#F5F3FF] rounded-[32px] p-8'>
+              <div className='flex items-start gap-4 mb-6'>
+                <div className='w-12 h-12 rounded-[16px] bg-gradient-to-br from-[#A78BFA] to-[#7C3AED] flex items-center justify-center shadow-clay-button flex-shrink-0'>
+                  <Briefcase className='h-6 w-6 text-white' />
+                </div>
+                <div>
+                  <h2 className='text-xl font-extrabold text-[#332F3A]' style={{ fontFamily: "'Nunito', sans-serif" }}>첫 활동을 시작해보세요!</h2>
+                  <p className='text-sm text-[#635F69] mt-1'>아직 지원하거나 수강 중인 내역이 없습니다.</p>
+                </div>
+              </div>
+              <div className='grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4'>
+                <Link
+                  to='/profile/edit'
+                  className='flex items-center justify-between p-4 bg-white/80 backdrop-blur-xl rounded-[20px] shadow-clay-card hover:-translate-y-1 transition-all duration-200 active:scale-[0.97] group'
+                >
+                  <div>
+                    <div className='font-bold text-[#332F3A] text-sm' style={{ fontFamily: "'Nunito', sans-serif" }}>프로필 완성하기</div>
+                    <div className='text-xs text-[#635F69] mt-0.5'>bio와 스킬을 등록하세요</div>
+                  </div>
+                  <ArrowRight className='h-4 w-4 text-[#7C3AED] group-hover:translate-x-1 transition-transform duration-200' />
+                </Link>
+                <Link
+                  to='/jobs'
+                  className='flex items-center justify-between p-4 bg-white/80 backdrop-blur-xl rounded-[20px] shadow-clay-card hover:-translate-y-1 transition-all duration-200 active:scale-[0.97] group'
+                >
+                  <div>
+                    <div className='font-bold text-[#332F3A] text-sm' style={{ fontFamily: "'Nunito', sans-serif" }}>일거리 둘러보기</div>
+                    <div className='text-xs text-[#635F69] mt-0.5'>프로젝트에 지원해보세요</div>
+                  </div>
+                  <ArrowRight className='h-4 w-4 text-[#7C3AED] group-hover:translate-x-1 transition-transform duration-200' />
+                </Link>
+              </div>
+              <Link
+                to='/onboarding'
+                className='inline-flex items-center gap-2 text-sm font-bold text-[#7C3AED] hover:underline'
+              >
+                온보딩 다시 보기 <ArrowRight className='h-4 w-4' />
+              </Link>
+            </div>
+          )}
+          {(data.recommendedJobs as RecommendedJob[])?.length > 0 && (
+            <div className='mb-8'>
+              <h2 className='text-xl font-extrabold text-[#332F3A] mb-4' style={{ fontFamily: "'Nunito', sans-serif" }}>
+                ✨ 맞춤 추천 일거리
+              </h2>
+              <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
+                {(data.recommendedJobs as RecommendedJob[]).map((job) => (
+                  <Link
+                    key={job.id}
+                    to={`/jobs/${job.id}`}
+                    className='bg-white/70 backdrop-blur-xl rounded-[24px] shadow-clay-card p-5 hover:-translate-y-1 hover:shadow-clay-card-hover transition-all duration-200 block'
+                  >
+                    <div className='font-bold text-[#332F3A] mb-1 line-clamp-2' style={{ fontFamily: "'Nunito', sans-serif" }}>
+                      {job.title}
+                    </div>
+                    <div className='text-sm text-[#635F69] mb-3'>
+                      {job.isRemote ? '원격' : job.location || '위치 미정'}
+                      {job.budgetMin != null && (
+                        <span className='ml-2 text-[#7C3AED] font-medium'>
+                          {new Intl.NumberFormat('ko-KR').format(job.budgetMin)}원~
+                        </span>
+                      )}
+                    </div>
+                    {job.matchedSkills.length > 0 && (
+                      <div className='flex flex-wrap gap-1'>
+                        {job.matchedSkills.slice(0, 3).map((skill) => (
+                          <span
+                            key={skill}
+                            className='bg-[#EDE9FE] text-[#7C3AED] rounded-full px-2.5 py-1 text-xs font-medium'
+                          >
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
           <Card className='mb-8'>
             <CardHeader><CardTitle>내 지원 현황</CardTitle></CardHeader>
             <CardContent>
@@ -241,12 +328,19 @@ export default function Dashboard() {
               {(data.enrollments as any[])?.length === 0 ? <p className='text-[#635F69]'>수강 중인 강좌가 없습니다.</p> : (
                 <div className='space-y-3'>
                   {(data.enrollments as any[])?.map((e: any) => (
-                    <Link to={`/courses/${e.id}/learn`} key={e.id}>
-                      <div className='flex items-center justify-between p-4 bg-[#EDE9FE] rounded-[32px] hover:bg-[#EDE9FE] transition-all duration-200'>
-                        <div><div className='font-medium'>{e.courseTitle}</div><div className='text-sm text-[#635F69]'>{e.level}</div></div>
-                        <div className='text-sm font-medium text-[#7C3AED]'>{Math.round(e.progress)}%</div>
-                      </div>
-                    </Link>
+                    <div key={e.id}>
+                      <Link to={`/courses/${e.id}/learn`}>
+                        <div className='flex items-center justify-between p-4 bg-[#EDE9FE] rounded-[32px] hover:bg-[#EDE9FE] transition-all duration-200'>
+                          <div><div className='font-medium'>{e.courseTitle}</div><div className='text-sm text-[#635F69]'>{e.level}</div></div>
+                          <div className='text-sm font-medium text-[#7C3AED]'>{Math.round(e.progress)}%</div>
+                        </div>
+                      </Link>
+                      {e.progress < 100 && (
+                        <Link to={`/courses/${e.courseId}#related`} className='text-xs text-[#7C3AED] hover:underline pl-1 mt-1 inline-block'>
+                          이 강좌 관련 일거리 보기 →
+                        </Link>
+                      )}
+                    </div>
                   ))}
                 </div>
               )}
@@ -302,12 +396,84 @@ export default function Dashboard() {
               ))}
             </div>
           )}
+          {(data.recommendedWorkers as RecommendedWorker[])?.length > 0 && (
+            <div className='mb-8'>
+              <h2 className='text-xl font-extrabold text-[#332F3A] mb-4' style={{ fontFamily: "'Nunito', sans-serif" }}>
+                ✨ 추천 전문가
+              </h2>
+              <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
+                {(data.recommendedWorkers as RecommendedWorker[]).map((w) => (
+                  <Link
+                    key={w.id}
+                    to={`/workers/${w.id}`}
+                    className='bg-white/70 backdrop-blur-xl rounded-[24px] shadow-clay-card p-5 hover:-translate-y-1 hover:shadow-clay-card-hover transition-all duration-200 flex items-start gap-3'
+                  >
+                    <div className='w-10 h-10 rounded-[20px] bg-[#EDE9FE] flex items-center justify-center text-[#7C3AED] font-bold text-sm shrink-0 overflow-hidden'>
+                      {w.image ? (
+                        <img src={w.image} alt='' className='w-full h-full object-cover' />
+                      ) : (
+                        (w.name || '?')[0]
+                      )}
+                    </div>
+                    <div className='flex-1 min-w-0'>
+                      <div className='font-bold text-[#332F3A] truncate' style={{ fontFamily: "'Nunito', sans-serif" }}>
+                        {w.name || '익명'}
+                      </div>
+                      <div className='flex items-center gap-2 text-xs text-[#635F69] mb-2'>
+                        {w.rating > 0 && (
+                          <span className='flex items-center gap-0.5'>
+                            <Star className='h-3 w-3 text-yellow-400 fill-yellow-400' />
+                            {w.rating}
+                          </span>
+                        )}
+                        <span className='text-[#7C3AED] font-medium'>신뢰점수 {w.trustScore}</span>
+                      </div>
+                      {w.matchedSkills.length > 0 && (
+                        <div className='flex flex-wrap gap-1'>
+                          {w.matchedSkills.slice(0, 3).map((skill) => (
+                            <span
+                              key={skill}
+                              className='bg-[#EDE9FE] text-[#7C3AED] rounded-full px-2.5 py-1 text-xs font-medium'
+                            >
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
           <div className='flex justify-between items-center mb-6'>
             <h2 className='text-xl font-bold'>내 일거리</h2>
             <Button asChild className='bg-[#7C3AED] rounded-[20px] hover:bg-#7C3AED active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200'><Link to='/jobs/new'><Plus className='h-4 w-4 mr-2' />일거리 등록</Link></Button>
           </div>
           {(data.postedJobs as any[])?.length === 0 ? (
-            <div className='bg-[#EDE9FE] rounded-[32px] p-8 text-center text-[#635F69]'>등록한 일거리가 없습니다.</div>
+            <div className='bg-gradient-to-br from-[#EDE9FE] to-[#F5F3FF] rounded-[32px] p-8 mb-8'>
+              <div className='text-center mb-6'>
+                <div className='w-14 h-14 rounded-[20px] bg-gradient-to-br from-[#A78BFA] to-[#7C3AED] flex items-center justify-center shadow-clay-button mx-auto mb-4'>
+                  <Briefcase className='h-7 w-7 text-white' />
+                </div>
+                <h3 className='text-xl font-extrabold text-[#332F3A]' style={{ fontFamily: "'Nunito', sans-serif" }}>첫 일거리를 등록해보세요</h3>
+                <p className='text-sm text-[#635F69] mt-2'>필요한 작업을 올리면 전문가가 지원합니다</p>
+              </div>
+              <div className='flex flex-col sm:flex-row gap-3 justify-center'>
+                <Link
+                  to='/jobs/new'
+                  className='flex items-center justify-center gap-2 h-12 px-6 rounded-[20px] bg-gradient-to-r from-[#A78BFA] to-[#7C3AED] text-white font-bold shadow-clay-button hover:-translate-y-1 active:scale-[0.92] active:shadow-clay-pressed transition-all duration-200'
+                >
+                  <Plus className='h-4 w-4' /> 첫 일거리 등록하기
+                </Link>
+                <Link
+                  to='/workers'
+                  className='flex items-center justify-center gap-2 h-12 px-6 rounded-[20px] bg-white/80 backdrop-blur-xl text-[#332F3A] font-bold shadow-clay-card hover:-translate-y-1 active:scale-[0.92] transition-all duration-200 group'
+                >
+                  전문가 둘러보기 <ArrowRight className='h-4 w-4 text-[#7C3AED] group-hover:translate-x-1 transition-transform duration-200' />
+                </Link>
+              </div>
+            </div>
           ) : (
             <div className='space-y-4 mb-8'>
               {(data.postedJobs as any[])?.map((j: any) => {

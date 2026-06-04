@@ -1,13 +1,13 @@
 import { Link, redirect, useLoaderData, useNavigate } from 'react-router';
 import type { MetaFunction, LoaderFunctionArgs } from 'react-router';
-import { eq } from 'drizzle-orm';
-import { ArrowLeft, CheckCircle, XCircle, FileText, ExternalLink } from 'lucide-react';
+import { eq, and, inArray } from 'drizzle-orm';
+import { ArrowLeft, CheckCircle, XCircle, FileText, ExternalLink, AlertTriangle } from 'lucide-react';
 import { Button } from '~/components/ui/button';
 import { Textarea } from '~/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
 import { Badge } from '~/components/ui/badge';
 import { db } from '~/lib/db.server';
-import { contracts, jobs, user } from '~/db/schema';
+import { contracts, jobs, user, disputes } from '~/db/schema';
 import { auth } from '~/lib/auth.server';
 import { useState } from 'react';
 
@@ -44,16 +44,53 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     }
   }
 
-  return { contract, job, workerInfo, deliverableFiles };
+  const activeDispute = await db
+    .select()
+    .from(disputes)
+    .where(
+      and(
+        eq(disputes.contractId, contract.id),
+        inArray(disputes.status, ['open', 'reviewing']),
+      ),
+    )
+    .get();
+
+  return { contract, job, workerInfo, deliverableFiles, activeDispute: activeDispute ?? null };
 }
 
 export default function ContractConfirm() {
-  const { contract, job, workerInfo, deliverableFiles } = useLoaderData<typeof loader>();
+  const { contract, job, workerInfo, deliverableFiles, activeDispute } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [revisionNote, setRevisionNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showDisputeForm, setShowDisputeForm] = useState(false);
+  const [disputeReason, setDisputeReason] = useState('');
+  const [isDisputeSubmitting, setIsDisputeSubmitting] = useState(false);
+  const [disputeError, setDisputeError] = useState<string | null>(null);
+
+  const handleDisputeSubmit = async () => {
+    if (disputeReason.trim().length < 30) {
+      setDisputeError('분쟁 사유는 30자 이상 입력해주세요.');
+      return;
+    }
+    setIsDisputeSubmitting(true);
+    setDisputeError(null);
+    try {
+      const res = await fetch(`/api/contracts/${contract.id}/dispute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: disputeReason }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || '분쟁 제기에 실패했습니다.');
+      navigate('/dashboard');
+    } catch (err: unknown) {
+      setDisputeError(err instanceof Error ? err.message : '분쟁 제기 중 오류가 발생했습니다.');
+      setIsDisputeSubmitting(false);
+    }
+  };
 
   const handleConfirm = async () => {
     setIsSubmitting(true);
@@ -206,6 +243,68 @@ export default function ContractConfirm() {
               </Button>
             </div>
           )}
+
+          {/* 분쟁 제기 섹션 */}
+          <div className="pt-2 border-t border-gray-100">
+            {activeDispute ? (
+              <div className="flex items-center gap-2 bg-orange-50 rounded-[16px] px-4 py-3">
+                <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0" />
+                <span className="text-sm text-orange-700 font-medium">현재 분쟁 검토 중입니다.</span>
+              </div>
+            ) : (
+              <div>
+                {!showDisputeForm ? (
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-[#635F69]">
+                      문제가 있나요?{' '}
+                      <a href="/policies/dispute" target="_blank" rel="noopener noreferrer" className="text-[#7C3AED] hover:underline">분쟁 정책</a>
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowDisputeForm(true)}
+                      className="text-orange-600 border-orange-200 hover:bg-orange-50 rounded-[14px] text-xs"
+                    >
+                      <AlertTriangle className="h-3.5 w-3.5 mr-1" />분쟁 제기
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium text-[#332F3A]">분쟁 사유를 입력해주세요</p>
+                    <Textarea
+                      value={disputeReason}
+                      onChange={(e) => setDisputeReason(e.target.value)}
+                      placeholder="최소 30자 이상 입력해주세요."
+                      rows={3}
+                      className="bg-gray-50 rounded-[16px] border border-gray-200 p-3 text-sm text-[#332F3A] placeholder:text-gray-400"
+                    />
+                    <p className="text-xs text-[#635F69]">{disputeReason.length}/30자 이상 필요</p>
+                    {disputeError && <p className="text-xs text-red-500">{disputeError}</p>}
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        onClick={handleDisputeSubmit}
+                        disabled={isDisputeSubmitting || disputeReason.trim().length < 30}
+                        className="bg-orange-500 hover:bg-orange-600 text-white rounded-[14px] text-xs h-8 px-4 disabled:opacity-50 active:scale-[0.97] transition-all duration-200"
+                      >
+                        {isDisputeSubmitting ? '제출 중...' : '분쟁 제기'}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => { setShowDisputeForm(false); setDisputeReason(''); setDisputeError(null); }}
+                        className="rounded-[14px] text-xs h-8"
+                      >
+                        취소
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Reject Form */}
           {isDelivered && showRejectForm && (

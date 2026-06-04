@@ -71,6 +71,32 @@ export const uploadRouter = {
     .onUploadComplete(async ({ file }) => {
       return { url: file.ufsUrl };
     }),
+
+  certificationFile: f({
+    image: { maxFileSize: '4MB', maxFileCount: 1 },
+    pdf: { maxFileSize: '4MB', maxFileCount: 1 },
+  })
+    .middleware(async (opts) => {
+      const user = await authenticate(opts);
+      if (!user) throw new UploadThingError('Unauthorized');
+      return { userId: user.id };
+    })
+    .onUploadComplete(async ({ file }) => {
+      return { url: file.ufsUrl };
+    }),
+
+  disputeEvidence: f({
+    image: { maxFileSize: '4MB', maxFileCount: 5 },
+    pdf: { maxFileSize: '4MB', maxFileCount: 5 },
+  })
+    .middleware(async (opts) => {
+      const user = await authenticate(opts);
+      if (!user) throw new UploadThingError('Unauthorized');
+      return { userId: user.id };
+    })
+    .onUploadComplete(async ({ file }) => {
+      return { url: file.ufsUrl };
+    }),
 } satisfies FileRouter;
 
 export type UploadRouter = typeof uploadRouter;

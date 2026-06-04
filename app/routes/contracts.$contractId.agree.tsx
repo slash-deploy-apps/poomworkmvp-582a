@@ -1,15 +1,16 @@
-import { Link, redirect, useLoaderData } from 'react-router';
+import { Link, redirect, useLoaderData, useNavigate } from 'react-router';
 import type { MetaFunction, LoaderFunctionArgs } from 'react-router';
 import { useEffect, useState } from 'react';
-import { ArrowLeft, CheckCircle, Clock, CreditCard } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Clock, CreditCard, AlertTriangle } from 'lucide-react';
 import { Button } from '~/components/ui/button';
+import { Textarea } from '~/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
 import { Checkbox } from '~/components/ui/checkbox';
 import { Badge } from '~/components/ui/badge';
 import { db } from '~/lib/db.server';
-import { contracts, jobApplications, jobs, user } from '~/db/schema';
+import { contracts, jobApplications, jobs, user, disputes } from '~/db/schema';
 import { auth } from '~/lib/auth.server';
-import { eq } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 
 export const meta: MetaFunction = () => [{ title: '계약 동의 - poomwork' }];
 
@@ -39,6 +40,17 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     db.select({ id: user.id, name: user.name }).from(user).where(eq(user.id, contract.clientId)).get(),
   ]);
 
+  const activeDispute = await db
+    .select()
+    .from(disputes)
+    .where(
+      and(
+        eq(disputes.contractId, contract.id),
+        inArray(disputes.status, ['open', 'reviewing']),
+      ),
+    )
+    .get();
+
   return {
     contract,
     job,
@@ -46,6 +58,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     worker,
     client,
     currentUser: session.user,
+    activeDispute: activeDispute ?? null,
   };
 }
 
@@ -57,13 +70,15 @@ interface ContractStatus {
 
 export default function ContractAgree() {
   const data = useLoaderData<typeof loader>();
-  const { contract, job, application, worker, client, currentUser } = data as {
+  const navigate = useNavigate();
+  const { contract, job, application, worker, client, currentUser, activeDispute } = data as {
     contract: { id: string; jobId: string; applicationId: string; workerId: string; clientId: string; amount: number | null; duration: string | null; workerAgreed: boolean; clientAgreed: boolean; status: string };
     job: { title: string; budgetMin?: number | null };
     application: { proposedBudget: number | null };
     worker: { name: string };
     client: { name: string };
     currentUser: { id: string };
+    activeDispute: { id: string; status: string } | null;
   };
 
   const [statusData, setStatusData] = useState<ContractStatus>({
@@ -74,6 +89,32 @@ export default function ContractAgree() {
   const [myAgreed, setMyAgreed] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPolling, setIsPolling] = useState(true);
+  const [showDisputeForm, setShowDisputeForm] = useState(false);
+  const [disputeReason, setDisputeReason] = useState('');
+  const [isDisputeSubmitting, setIsDisputeSubmitting] = useState(false);
+  const [disputeError, setDisputeError] = useState<string | null>(null);
+
+  const handleDisputeSubmit = async () => {
+    if (disputeReason.trim().length < 30) {
+      setDisputeError('분쟁 사유는 30자 이상 입력해주세요.');
+      return;
+    }
+    setIsDisputeSubmitting(true);
+    setDisputeError(null);
+    try {
+      const res = await fetch(`/api/contracts/${contract.id}/dispute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: disputeReason }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || '분쟁 제기에 실패했습니다.');
+      navigate('/dashboard');
+    } catch (err: unknown) {
+      setDisputeError(err instanceof Error ? err.message : '분쟁 제기 중 오류가 발생했습니다.');
+      setIsDisputeSubmitting(false);
+    }
+  };
 
   const isWorker = currentUser.id === contract.workerId;
   const isClient = currentUser.id === contract.clientId;
@@ -290,6 +331,68 @@ export default function ContractAgree() {
           </CardContent>
         </Card>
       )}
+
+      {/* 분쟁 제기 섹션 */}
+      <div className="mt-4">
+        {activeDispute ? (
+          <div className="flex items-center gap-2 bg-orange-50 rounded-[20px] px-5 py-4 border border-orange-200">
+            <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0" />
+            <span className="text-sm text-orange-700 font-medium">현재 분쟁 검토 중입니다. 관리자가 처리할 때까지 기다려주세요.</span>
+          </div>
+        ) : (
+          <div className="bg-white rounded-[24px] border border-gray-100 p-4">
+            {!showDisputeForm ? (
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-[#635F69]">
+                  이 거래에 문제가 있나요?{' '}
+                  <a href="/policies/dispute" target="_blank" rel="noopener noreferrer" className="text-[#7C3AED] hover:underline">정책 보기</a>
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowDisputeForm(true)}
+                  className="text-orange-600 border-orange-200 hover:bg-orange-50 rounded-[14px] text-xs"
+                >
+                  <AlertTriangle className="h-3.5 w-3.5 mr-1" />분쟁 제기
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm font-medium text-[#332F3A]">분쟁 사유를 입력해주세요 (최소 30자)</p>
+                <Textarea
+                  value={disputeReason}
+                  onChange={(e) => setDisputeReason(e.target.value)}
+                  placeholder="문제 상황을 구체적으로 설명해주세요."
+                  rows={3}
+                  className="bg-gray-50 rounded-[16px] border border-gray-200 p-3 text-sm text-[#332F3A] placeholder:text-gray-400"
+                />
+                <p className="text-xs text-[#635F69]">{disputeReason.length}/30자 이상 필요</p>
+                {disputeError && <p className="text-xs text-red-500">{disputeError}</p>}
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    onClick={handleDisputeSubmit}
+                    disabled={isDisputeSubmitting || disputeReason.trim().length < 30}
+                    className="bg-orange-500 hover:bg-orange-600 text-white rounded-[14px] text-xs h-8 px-4 disabled:opacity-50 active:scale-[0.97] transition-all duration-200"
+                  >
+                    {isDisputeSubmitting ? '제출 중...' : '분쟁 제기'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { setShowDisputeForm(false); setDisputeReason(''); setDisputeError(null); }}
+                    className="rounded-[14px] text-xs h-8"
+                  >
+                    취소
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {bothAgreed && (
         <div className="mt-6">

@@ -8,6 +8,8 @@ import { Badge } from '~/components/ui/badge';
 import { db } from '~/lib/db.server';
 import { jobs, user, categories } from '~/db/schema';
 import { auth } from '~/lib/auth.server';
+import { recommendJobsForWorker } from '~/lib/recommend.server';
+import type { RecommendedJob } from '~/lib/recommend.server';
 
 export const meta: MetaFunction = () => [{ title: '일거리 찾기 - poomwork' }];
 
@@ -44,7 +46,14 @@ export async function loader({ request }: LoaderFunctionArgs) {
   }).from(jobs).leftJoin(user, eq(jobs.clientId, user.id))
     .leftJoin(categories, eq(jobs.categoryId, categories.id))
     .where(and(...conditions)).orderBy(orderByClause).limit(50);
-  return { jobs: allJobs, user: session?.user ?? null };
+
+  const currentUser = session?.user ?? null;
+  const recommendedJobs: RecommendedJob[] =
+    currentUser?.role === 'worker'
+      ? await recommendJobsForWorker(currentUser.id, 3)
+      : [];
+
+  return { jobs: allJobs, user: currentUser, recommendedJobs };
 }
 
 const urgencyMap: Record<string, { label: string; color: string }> = {
@@ -63,7 +72,7 @@ const sortOptions = [
 const exampleTags = ['React', 'TypeScript', '디자인', '마케팅', '원격', '단기', '프리랜서'];
 
 export default function JobsPage() {
-  const { jobs: allJobs, user: currentUser } = useLoaderData<typeof loader>();
+  const { jobs: allJobs, user: currentUser, recommendedJobs } = useLoaderData<typeof loader>();
   const [searchParams, setSearchParams] = useSearchParams();
   const currentSort = searchParams.get('sort') || 'newest';
   const currentTag = searchParams.get('tag') || '';
@@ -153,6 +162,47 @@ export default function JobsPage() {
           </div>
         )}
       </div>
+
+      {recommendedJobs.length > 0 && (
+        <div className='mb-8'>
+          <h2 className='text-lg font-extrabold text-[#332F3A] mb-3' style={{ fontFamily: "'Nunito', sans-serif" }}>
+            ✨ 맞춤 추천
+          </h2>
+          <div className='grid grid-cols-1 sm:grid-cols-3 gap-4'>
+            {recommendedJobs.map((job) => (
+              <Link
+                key={job.id}
+                to={`/jobs/${job.id}`}
+                className='bg-white/70 backdrop-blur-xl rounded-[24px] shadow-clay-card p-5 hover:-translate-y-1 hover:shadow-clay-card-hover transition-all duration-200 block'
+              >
+                <div className='font-bold text-[#332F3A] mb-1 line-clamp-2' style={{ fontFamily: "'Nunito', sans-serif" }}>
+                  {job.title}
+                </div>
+                <div className='text-sm text-[#635F69] mb-2'>
+                  {job.isRemote ? '원격' : job.location || '위치 미정'}
+                  {job.budgetMin != null && (
+                    <span className='ml-2 text-[#7C3AED] font-medium'>
+                      {new Intl.NumberFormat('ko-KR').format(job.budgetMin)}원~
+                    </span>
+                  )}
+                </div>
+                {job.matchedSkills.length > 0 && (
+                  <div className='flex flex-wrap gap-1'>
+                    {job.matchedSkills.slice(0, 3).map((skill) => (
+                      <span
+                        key={skill}
+                        className='bg-[#EDE9FE] text-[#7C3AED] rounded-full px-2.5 py-1 text-xs font-medium'
+                      >
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-4">
         {allJobs.length === 0 ? (

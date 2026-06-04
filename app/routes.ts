@@ -11,6 +11,7 @@ export default [
   route('login', 'routes/login.tsx'),
   route('register', 'routes/register.tsx'),
   route('logout', 'routes/logout.tsx'),
+  route('onboarding', 'routes/onboarding.tsx'),
 
   // Jobs (일거리)
   route('jobs', 'routes/jobs.tsx'),
@@ -57,9 +58,13 @@ export default [
   route('api/contracts/:id/deliver', 'routes/api.contracts.$id.deliver.ts'),
   route('api/contracts/:id/confirm', 'routes/api.contracts.$id.confirm.ts'),
   route('api/contracts/:id/reject', 'routes/api.contracts.$id.reject.ts'),
+  route('api/contracts/:id/dispute', 'routes/api.contracts.$id.dispute.ts'),
 
   // Admin
   route('admin', 'routes/admin.tsx'),
+
+  // Policies
+  route('policies/dispute', 'routes/policies.dispute.tsx'),
 
   // Payments (NicePay)
   route('payment/success', 'routes/payment.nicepay.success.tsx'),

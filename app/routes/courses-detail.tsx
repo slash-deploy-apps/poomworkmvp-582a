@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link, redirect, useLoaderData } from 'react-router';
 import type { MetaFunction, LoaderFunctionArgs, ActionFunctionArgs } from 'react-router';
 import { eq, sql } from 'drizzle-orm';
-import { Star, Users, Clock, Play, Lock, Camera, X } from 'lucide-react';
+import { Star, Users, Clock, Play, Lock, Camera, X, Briefcase, MessageSquare } from 'lucide-react';
 import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
 import { Badge } from '~/components/ui/badge';
@@ -12,6 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { db } from '~/lib/db.server';
 import { courses, courseChapters, courseLessons, enrollments, user } from '~/db/schema';
 import { auth } from '~/lib/auth.server';
+import { recommendJobsForCourse } from '~/lib/recommend.server';
+import type { RecommendedJob } from '~/lib/recommend.server';
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
   const session = await auth.api.getSession({ headers: request.headers });
@@ -21,7 +23,8 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
   const chapters = await db.select().from(courseChapters).where(eq(courseChapters.courseId, params.courseId!)).orderBy(courseChapters.sortOrder);
   const lessons = await db.select().from(courseLessons).where(eq(courseLessons.courseId, params.courseId!)).orderBy(courseLessons.sortOrder);
   const enrollment = session?.user ? await db.select().from(enrollments).where(sql`${enrollments.userId} = ${session.user.id} AND ${enrollments.courseId} = ${params.courseId!}`).limit(1) : [];
-  return { course: course[0], instructor: instructor[0] || null, chapters, lessons, enrollment: enrollment[0] || null, user: session?.user ?? null };
+  const relatedJobs = await recommendJobsForCourse(params.courseId!, 4);
+  return { course: course[0], instructor: instructor[0] || null, chapters, lessons, enrollment: enrollment[0] || null, user: session?.user ?? null, relatedJobs };
 }
 
 export async function action({ request, params }: ActionFunctionArgs) {
@@ -193,7 +196,7 @@ function EnrollmentButton({ courseId, price, title }: { courseId: string; price:
 
 
 export default function CourseDetail() {
-  const { course: c, instructor, chapters, lessons, enrollment, user: currentUser } = useLoaderData<typeof loader>();
+  const { course: c, instructor, chapters, lessons, enrollment, user: currentUser, relatedJobs } = useLoaderData<typeof loader>();
   const levelLabels: Record<string, string> = { beginner: '초급', intermediate: '중급', advanced: '고급' };
   const totalDuration = lessons.reduce((sum, l) => sum + l.duration, 0);
   const isOwner = currentUser && currentUser.id === c.instructorId;
@@ -325,7 +328,7 @@ export default function CourseDetail() {
             </div>
           )}
         </div>
-        <div className="space-y-6">
+        <div className="space-y-6" id="related">
           <div className="bg-white/60 backdrop-blur-xl rounded-[32px] p-6 shadow-clayCard sticky top-8">
             <div className="text-center mb-6">
               {c.price === 0 ? (
@@ -363,7 +366,7 @@ export default function CourseDetail() {
             {instructor && (
               <div className="mt-6 pt-6 border-t border-gray-200">
                 <p className="text-sm text-[#635F69] mb-3">강사</p>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 mb-3">
                   <div className="w-10 h-10 rounded-[20px] bg-[#EDE9FE] flex items-center justify-center">
                     {instructor.image ? (
                       <img src={instructor.image} alt={instructor.name || ''} className="w-10 h-10 rounded-[20px] object-cover" />
@@ -376,11 +379,62 @@ export default function CourseDetail() {
                     {instructor.rating > 0 && <p className="text-xs text-[#635F69]">★ {instructor.rating} ({instructor.reviewCount}개 리뷰)</p>}
                   </div>
                 </div>
+                <Link to={`/workers/${instructor.id}`}>
+                  <button
+                    type="button"
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-[20px] bg-[#EDE9FE] hover:bg-[#DDD6FE] text-[#7C3AED] text-sm font-bold transition-all duration-200 active:scale-[0.92]"
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    이 강사에게 일 의뢰하기
+                  </button>
+                </Link>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* 💼 이 강좌를 듣는 분들이 도전하는 일거리 */}
+      {relatedJobs.length > 0 && (
+        <div className="mt-10 bg-[#EDE9FE] rounded-[32px] p-8">
+          <div className="flex items-center gap-2 mb-6">
+            <Briefcase className="h-5 w-5 text-[#7C3AED]" />
+            <h2 className="text-xl font-extrabold text-[#332F3A]" style={{ fontFamily: "'Nunito', sans-serif" }}>
+              💼 이 강좌를 듣는 분들이 도전하는 일거리
+            </h2>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {(relatedJobs as RecommendedJob[]).map((job) => (
+              <Link
+                key={job.id}
+                to={`/jobs/${job.id}`}
+                className="bg-white/70 backdrop-blur-xl rounded-[24px] shadow-clay-card p-5 hover:-translate-y-1 hover:shadow-clay-card-hover transition-all duration-200 block"
+              >
+                <div className="font-bold text-[#332F3A] text-sm line-clamp-2 mb-2" style={{ fontFamily: "'Nunito', sans-serif" }}>
+                  {job.title}
+                </div>
+                <div className="text-xs text-[#635F69] mb-3">
+                  {job.isRemote ? '원격' : job.location || '위치 미정'}
+                  {job.budgetMin != null && (
+                    <span className="ml-1 text-[#7C3AED] font-medium">
+                      {new Intl.NumberFormat('ko-KR').format(job.budgetMin)}원~
+                    </span>
+                  )}
+                </div>
+                {job.matchedSkills.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {job.matchedSkills.slice(0, 3).map((skill) => (
+                      <span key={skill} className="bg-[#EDE9FE] text-[#7C3AED] rounded-full px-2 py-0.5 text-xs font-medium">
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,13 +1,14 @@
 import { Link, useLoaderData } from 'react-router';
 import type { MetaFunction, LoaderFunctionArgs } from 'react-router';
 import { eq, desc, sql, and } from 'drizzle-orm';
-import { MapPin, Star, ExternalLink, Briefcase, MessageCircle } from 'lucide-react';
+import { MapPin, Star, ExternalLink, Briefcase, MessageCircle, ShieldCheck } from 'lucide-react';
 import { Badge } from '~/components/ui/badge';
 import { Button } from '~/components/ui/button';
 import { StarRating } from '~/components/ui/star-rating';
 import { VideoEmbedIframe } from '~/lib/video-embed';
 import { db } from '~/lib/db.server';
-import { user, portfolios, reviews, services } from '~/db/schema';
+import { user, portfolios, reviews, services, certifications } from '~/db/schema';
+import { calcTrustScore } from '~/lib/trust.server';
 
 export async function loader({ params }: LoaderFunctionArgs) {
   const worker = await db.select().from(user).where(eq(user.id, params.workerId!)).limit(1);
@@ -30,13 +31,32 @@ export async function loader({ params }: LoaderFunctionArgs) {
     .orderBy(desc(services.createdAt))
     .limit(10);
 
-  return { worker: w, portfolios: portfolioList, reviews: reviewList, services: workerServices };
+  const [trustScore, approvedCerts] = await Promise.all([
+    calcTrustScore(params.workerId!),
+    db.select({
+      id: certifications.id,
+      type: certifications.type,
+      title: certifications.title,
+      issuer: certifications.issuer,
+    })
+      .from(certifications)
+      .where(and(eq(certifications.userId, params.workerId!), eq(certifications.status, 'approved'))),
+  ]);
+
+  return { worker: w, portfolios: portfolioList, reviews: reviewList, services: workerServices, trustScore, approvedCerts };
 }
 
 export const meta: MetaFunction<typeof loader> = ({ data }) => [{ title: `${data?.worker.name || '전문가'} - poomwork` }];
 
+const CERT_TYPE_LABELS: Record<string, string> = {
+  license: '자격증',
+  business: '사업자',
+  education: '학력',
+  identity: '신분',
+};
+
 export default function WorkerDetail() {
-  const { worker: w, portfolios: pf, reviews: rw, services: ws } = useLoaderData<typeof loader>();
+  const { worker: w, portfolios: pf, reviews: rw, services: ws, trustScore, approvedCerts } = useLoaderData<typeof loader>();
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -65,6 +85,35 @@ export default function WorkerDetail() {
                 {w.skills.split(',').map((s) => <Badge key={s} variant='secondary'>{s.trim()}</Badge>)}
               </div>
             )}
+
+            {/* 신뢰 점수 */}
+            <div className='mt-4 w-full bg-white/50 rounded-[20px] p-4 text-left'>
+              <div className='flex items-center justify-between mb-3'>
+                <span className='text-sm font-semibold text-[#332F3A] flex items-center gap-1'>
+                  <ShieldCheck className='h-4 w-4 text-[#7C3AED]' />신뢰 점수
+                </span>
+                <span className='text-lg font-bold text-[#7C3AED]'>{trustScore.total}<span className='text-xs text-[#635F69] font-normal'>/100</span></span>
+              </div>
+              <div className='space-y-1.5'>
+                <TrustBar label='평점' value={trustScore.rating} max={50} />
+                <TrustBar label='리뷰' value={trustScore.reviews} max={20} />
+                <TrustBar label='인증' value={trustScore.certifications} max={20} />
+                <TrustBar label='포트폴리오' value={trustScore.portfolio} max={10} />
+              </div>
+            </div>
+
+            {/* 인증 뱃지 */}
+            {approvedCerts.length > 0 && (
+              <div className='mt-3 flex flex-wrap gap-1.5 justify-center'>
+                {approvedCerts.map((cert) => (
+                  <span key={cert.id} className='inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs rounded-[20px] px-2.5 py-1 font-medium'>
+                    <ShieldCheck className='h-3 w-3' />
+                    {CERT_TYPE_LABELS[cert.type] ?? cert.type} · {cert.title}
+                  </span>
+                ))}
+              </div>
+            )}
+
             <Button asChild className='mt-4 w-full bg-[#7C3AED] hover:bg-#7C3AED rounded-[20px] text-white active:scale-[0.92] transition-all duration-200'>
               <Link to={`/messages?peerId=${w.id}`}><MessageCircle className='h-4 w-4 mr-2' />문의하기</Link>
             </Button>
@@ -171,6 +220,19 @@ export default function WorkerDetail() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function TrustBar({ label, value, max }: { label: string; value: number; max: number }) {
+  const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+  return (
+    <div className='flex items-center gap-2 text-xs'>
+      <span className='w-16 text-[#635F69] shrink-0'>{label}</span>
+      <div className='flex-1 h-1.5 bg-[#EDE9FE] rounded-full overflow-hidden'>
+        <div className='h-full bg-[#7C3AED] rounded-full transition-all duration-500' style={{ width: `${pct}%` }} />
+      </div>
+      <span className='w-8 text-right text-[#332F3A] font-medium'>{value}</span>
     </div>
   );
 }

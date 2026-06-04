@@ -512,6 +512,7 @@ export const userRelations = relations(user, ({ many }) => ({
   jobs: many(jobs),
   jobApplications: many(jobApplications),
   portfolios: many(portfolios),
+  certifications: many(certifications, { relationName: 'certificationOwner' }),
   services: many(services),
   coursesAsInstructor: many(courses),
   enrollments: many(enrollments),
@@ -520,6 +521,7 @@ export const userRelations = relations(user, ({ many }) => ({
   reviewsReceived: many(reviews, { relationName: 'reviewee' }),
   messagesSent: many(messages, { relationName: 'sender' }),
   messagesReceived: many(messages, { relationName: 'receiver' }),
+  disputesRaised: many(disputes, { relationName: 'disputeRaiser' }),
 }));
 
 export const accountRelations = relations(account, ({ one }) => ({
@@ -669,6 +671,40 @@ export const messagesRelations = relations(messages, ({ one }) => ({
   job: one(jobs, { fields: [messages.jobId], references: [jobs.id] }),
 }));
 
+// ─── Certifications (자격·인증) ───────────────────────────────────────────
+
+export const certifications = sqliteTable(
+  'certifications',
+  (d) => ({
+    id: d
+      .text({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: d
+      .text({ length: 255 })
+      .notNull()
+      .references(() => user.id),
+    type: d.text({ length: 30 }).notNull(), // 'license' | 'business' | 'education' | 'identity'
+    title: d.text({ length: 255 }).notNull(),
+    issuer: d.text({ length: 255 }),
+    issuedAt: d.text({ length: 20 }), // YYYY-MM-DD (선택)
+    fileUrl: d.text({ length: 500 }).notNull(),
+    status: d.text({ length: 20 }).default('pending').notNull(), // pending | approved | rejected
+    reviewNote: d.text(),
+    reviewedBy: d.text({ length: 255 }).references(() => user.id),
+    reviewedAt: d.integer({ mode: 'timestamp' }),
+    createdAt: d
+      .integer({ mode: 'timestamp' })
+      .default(sql`(unixepoch())`)
+      .notNull(),
+  }),
+  (t) => [
+    index('certifications_user_id_idx').on(t.userId),
+    index('certifications_status_idx').on(t.status),
+  ],
+);
+
 // ─── Services (품/서비스) ─────────────────────────────────────────────────
 
 export const services = sqliteTable(
@@ -763,7 +799,7 @@ export const contracts = sqliteTable(
   ],
 );
 
-export const contractsRelations = relations(contracts, ({ one }) => ({
+export const contractsRelations = relations(contracts, ({ one, many }) => ({
   application: one(jobApplications, {
     fields: [contracts.applicationId],
     references: [jobApplications.id],
@@ -779,6 +815,55 @@ export const contractsRelations = relations(contracts, ({ one }) => ({
     relationName: 'contractClient',
   }),
   job: one(jobs, { fields: [contracts.jobId], references: [jobs.id] }),
+  disputes: many(disputes),
+}));
+
+// ─── Disputes (분쟁) ──────────────────────────────────────────────────────
+
+export const disputes = sqliteTable(
+  'disputes',
+  (d) => ({
+    id: d
+      .text({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    contractId: d.text({ length: 255 }).notNull().references(() => contracts.id),
+    raisedBy: d.text({ length: 255 }).notNull().references(() => user.id),
+    raisedRole: d.text({ length: 10 }).notNull(), // 'worker' | 'client'
+    reason: d.text().notNull(),
+    evidenceFiles: d.text(), // JSON array of file URLs
+    status: d.text({ length: 30 }).default('open').notNull(), // open | reviewing | resolved_buyer | resolved_seller | resolved_split | cancelled
+    adminNote: d.text(),
+    resolution: d.text({ length: 50 }), // 'refund_full' | 'refund_partial' | 'pay_worker' | 'cancel_dispute'
+    refundAmount: d.integer({ mode: 'number' }),
+    handledBy: d.text({ length: 255 }).references(() => user.id),
+    resolvedAt: d.integer({ mode: 'timestamp' }),
+    createdAt: d
+      .integer({ mode: 'timestamp' })
+      .default(sql`(unixepoch())`)
+      .notNull(),
+    updatedAt: d.integer({ mode: 'timestamp' }).$onUpdate(() => new Date()),
+  }),
+  (t) => [
+    index('disputes_contract_id_idx').on(t.contractId),
+    index('disputes_status_idx').on(t.status),
+    index('disputes_raised_by_idx').on(t.raisedBy),
+  ],
+);
+
+export const disputesRelations = relations(disputes, ({ one }) => ({
+  contract: one(contracts, { fields: [disputes.contractId], references: [contracts.id] }),
+  raiser: one(user, {
+    fields: [disputes.raisedBy],
+    references: [user.id],
+    relationName: 'disputeRaiser',
+  }),
+  handler: one(user, {
+    fields: [disputes.handledBy],
+    references: [user.id],
+    relationName: 'disputeHandler',
+  }),
 }));
 
 export const servicesRelations = relations(services, ({ one }) => ({
@@ -786,5 +871,18 @@ export const servicesRelations = relations(services, ({ one }) => ({
   category: one(categories, {
     fields: [services.categoryId],
     references: [categories.id],
+  }),
+}));
+
+export const certificationsRelations = relations(certifications, ({ one }) => ({
+  user: one(user, {
+    fields: [certifications.userId],
+    references: [user.id],
+    relationName: 'certificationOwner',
+  }),
+  reviewer: one(user, {
+    fields: [certifications.reviewedBy],
+    references: [user.id],
+    relationName: 'certificationReviewer',
   }),
 }));

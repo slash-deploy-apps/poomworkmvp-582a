@@ -1,15 +1,15 @@
 import { useState, useCallback, useRef } from 'react';
 import { Link, redirect, useLoaderData, useNavigate } from 'react-router';
 import type { MetaFunction, LoaderFunctionArgs } from 'react-router';
-import { Upload, X, FileText, CheckCircle } from 'lucide-react';
+import { Upload, X, FileText, AlertTriangle } from 'lucide-react';
 import { Button } from '~/components/ui/button';
 import { Textarea } from '~/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
 import { Badge } from '~/components/ui/badge';
 import { db } from '~/lib/db.server';
-import { contracts, jobs, user } from '~/db/schema';
+import { contracts, jobs, user, disputes } from '~/db/schema';
 import { auth } from '~/lib/auth.server';
-import { eq } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 
 export const meta: MetaFunction = () => [{ title: '결과물 전달 - poomwork' }];
 
@@ -36,11 +36,22 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     .where(eq(user.id, contract.clientId))
     .get();
 
-  return { contract, job, clientInfo, user: session.user };
+  const activeDispute = await db
+    .select()
+    .from(disputes)
+    .where(
+      and(
+        eq(disputes.contractId, contract.id),
+        inArray(disputes.status, ['open', 'reviewing']),
+      ),
+    )
+    .get();
+
+  return { contract, job, clientInfo, user: session.user, activeDispute: activeDispute ?? null };
 }
 
 export default function ContractDeliver() {
-  const { contract, job, clientInfo } = useLoaderData<typeof loader>();
+  const { contract, job, clientInfo, activeDispute } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
   const [deliverableText, setDeliverableText] = useState('');
@@ -48,6 +59,32 @@ export default function ContractDeliver() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [showDisputeForm, setShowDisputeForm] = useState(false);
+  const [disputeReason, setDisputeReason] = useState('');
+  const [isDisputeSubmitting, setIsDisputeSubmitting] = useState(false);
+  const [disputeError, setDisputeError] = useState<string | null>(null);
+
+  const handleDisputeSubmit = async () => {
+    if (disputeReason.trim().length < 30) {
+      setDisputeError('분쟁 사유는 30자 이상 입력해주세요.');
+      return;
+    }
+    setIsDisputeSubmitting(true);
+    setDisputeError(null);
+    try {
+      const res = await fetch(`/api/contracts/${contract.id}/dispute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: disputeReason }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || '분쟁 제기에 실패했습니다.');
+      navigate('/dashboard');
+    } catch (err: unknown) {
+      setDisputeError(err instanceof Error ? err.message : '분쟁 제기 중 오류가 발생했습니다.');
+      setIsDisputeSubmitting(false);
+    }
+  };
 
   const handleFileUpload = useCallback(async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -243,6 +280,73 @@ export default function ContractDeliver() {
           </form>
         </CardContent>
       </Card>
+
+      {/* 분쟁 제기 섹션 */}
+      <div className="mt-6">
+        {activeDispute ? (
+          <div className="flex items-center gap-2 bg-orange-50 rounded-[20px] px-5 py-4 border border-orange-200">
+            <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0" />
+            <span className="text-sm text-orange-700 font-medium">현재 분쟁 검토 중입니다. 관리자가 처리할 때까지 기다려주세요.</span>
+          </div>
+        ) : (
+          <div className="bg-white rounded-[24px] border border-gray-100 p-5">
+            {!showDisputeForm ? (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-[#332F3A]">이 거래에 문제가 있나요?</p>
+                  <p className="text-xs text-[#635F69] mt-0.5">
+                    분쟁을 제기하면 관리자가 중재합니다.{' '}
+                    <a href="/policies/dispute" target="_blank" rel="noopener noreferrer" className="text-[#7C3AED] hover:underline">정책 보기</a>
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowDisputeForm(true)}
+                  className="text-orange-600 border-orange-200 hover:bg-orange-50 rounded-[16px] text-sm shrink-0"
+                >
+                  <AlertTriangle className="h-4 w-4 mr-1" />
+                  분쟁 제기
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm font-medium text-[#332F3A]">분쟁 사유를 상세히 입력해주세요</p>
+                <Textarea
+                  value={disputeReason}
+                  onChange={(e) => setDisputeReason(e.target.value)}
+                  placeholder="최소 30자 이상 입력해주세요. 문제 상황을 구체적으로 설명해주세요."
+                  rows={4}
+                  className="bg-gray-50 rounded-[16px] border border-gray-200 p-3 text-sm text-[#332F3A] placeholder:text-gray-400"
+                />
+                <p className="text-xs text-[#635F69]">
+                  {disputeReason.length}/30자 이상 필요 ·{' '}
+                  <a href="/policies/dispute" target="_blank" rel="noopener noreferrer" className="text-[#7C3AED] hover:underline">분쟁 중재 정책 보기</a>
+                </p>
+                {disputeError && <p className="text-xs text-red-500">{disputeError}</p>}
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    onClick={handleDisputeSubmit}
+                    disabled={isDisputeSubmitting || disputeReason.trim().length < 30}
+                    className="bg-orange-500 hover:bg-orange-600 text-white rounded-[16px] text-sm disabled:opacity-50 active:scale-[0.97] transition-all duration-200"
+                  >
+                    {isDisputeSubmitting ? '제출 중...' : '분쟁 제기'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => { setShowDisputeForm(false); setDisputeReason(''); setDisputeError(null); }}
+                    className="rounded-[16px] text-sm"
+                  >
+                    취소
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
