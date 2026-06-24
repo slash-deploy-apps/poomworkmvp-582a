@@ -43,3 +43,11 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# home directory overrides
+.bash_logout
+.bashrc
+.profile
+.cache/
+.local/
+.npm/
