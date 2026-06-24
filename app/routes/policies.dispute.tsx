@@ -1,13 +1,57 @@
 import type { MetaFunction } from 'react-router';
 import { Link } from 'react-router';
-import { Scale, Clock, FileText, ShieldAlert, CheckCircle, AlertTriangle } from 'lucide-react';
+import {
+  Scale,
+  Clock,
+  FileText,
+  ShieldAlert,
+  CheckCircle,
+  AlertTriangle,
+  ShieldCheck,
+  FileSignature,
+  Copyright,
+  Lock,
+} from 'lucide-react';
 
 export const meta: MetaFunction = () => [
-  { title: '분쟁 중재 정책 - poomwork' },
-  { name: 'description', content: '품웍 분쟁 중재 정책 안내' },
+  { title: '안전 거래 및 분쟁 중재 정책 - poomwork' },
+  { name: 'description', content: '품웍 안전 거래 및 분쟁 중재 정책 안내' },
 ];
 
-const sections = [
+const legalSections = [
+  {
+    icon: FileSignature,
+    title: '전자계약의 법적 효력',
+    color: 'bg-indigo-50 text-indigo-600',
+    items: [
+      '민사적 계약 성립: 품웍 내에서 체결된 제안 및 합의사항은 전자문서 및 전자서명법에 따라 당사자 간의 의사 합치를 증명하는 민사상 유효하고 구속력 있는 계약으로 인정됩니다.',
+      '효력 발생 시점: 발주자와 전문가 상호 간에 합의 승인이 완료되고, 발주자의 에스크로 대금 결제가 완료된 시점부터 정식 계약의 법적 효력이 발생합니다.',
+      '신의성실의 원칙: 계약 당사자는 계약에서 정한 작업 범위와 납품 기한을 신의성실의 원칙에 따라 준수하여야 하며, 임의로 파기하거나 정당한 사유 없이 이행을 지체할 수 없습니다.',
+    ],
+  },
+  {
+    icon: Copyright,
+    title: '산출물 지식재산권(저작권) 귀속',
+    color: 'bg-emerald-50 text-emerald-600',
+    items: [
+      '저작권 이전 시점: 최종 작업 산출물에 대한 저작권 및 일체의 지식재산권은 발주자가 에스크로 대금 지급을 승인하여 정산(계약 확정)이 완료된 시점에 자동으로 전문가로부터 발주자에게 양도됩니다.',
+      '미승인 산출물 보호: 대금 결제 및 지급 승인이 완료되지 않은 시안, 중간 결과물, 미이행 계약 상태의 산출물은 당사자 간 별도의 합의가 없는 한 발주자가 무단으로 사용할 수 없습니다.',
+      '제3자 권리 보호: 전문가는 납품하는 산출물이 제3자의 특허권, 저작권, 초상권 등 지식재산권을 침해하지 않도록 보장해야 하며, 이를 위반하여 발생하는 법적 책임은 전문가에게 귀속됩니다.',
+    ],
+  },
+  {
+    icon: Lock,
+    title: '비밀유지 및 직거래 제한',
+    color: 'bg-sky-50 text-sky-600',
+    items: [
+      '상호 비밀유지 의무(NDA): 양 당사자는 계약 수행 과정에서 알게 된 상대방의 경영비밀, 기술정보, 개인정보를 상대방의 서면 동의 없이 외부로 유출하거나 제3자에게 공개할 수 없습니다.',
+      '플랫폼 외 직거래 금지: 품웍 플랫폼 내에서 알게 된 회원과 고의로 플랫폼 외부에서 결제 및 거래를 직접 조율하는 행위는 엄격히 제한됩니다.',
+      '직거래 시 대금 보호 예외: 플랫폼 외부에서 직거래 진행 시 플랫폼이 제공하는 에스크로 대금 보호 및 분쟁 조정 서비스 혜택을 일절 받을 수 없으며, 적발 시 계정 정지 등의 패널티가 부과됩니다.',
+    ],
+  },
+];
+
+const disputeSections = [
   {
     icon: AlertTriangle,
     title: '분쟁 제기 가능 시점',
@@ -84,45 +128,81 @@ export default function DisputePolicy() {
         ← 홈으로 돌아가기
       </Link>
 
-      <div className="text-center mb-10">
+      <div className="text-center mb-12">
         <div className="inline-flex items-center justify-center w-16 h-16 bg-[#EDE9FE] rounded-full mb-4">
-          <Scale className="h-8 w-8 text-[#7C3AED]" />
+          <ShieldCheck className="h-8 w-8 text-[#7C3AED]" />
         </div>
         <h1 className="text-3xl font-extrabold text-[#332F3A] mb-3" style={{ fontFamily: "'Nunito', sans-serif" }}>
-          분쟁 중재 정책
+          안전 거래 및 분쟁 중재 정책
         </h1>
-        <p className="text-[#635F69] text-base max-w-xl mx-auto">
-          품웍은 발주자와 전문가 모두를 공정하게 보호하기 위해 분쟁 중재 제도를 운영합니다.
-          아래 정책을 꼼꼼히 읽고 이해한 후 분쟁을 제기해주세요.
+        <p className="text-[#635F69] text-base max-w-xl mx-auto leading-relaxed">
+          품웍은 발주자와 전문가 간의 모든 계약과 거래가 공정하고 법적인 안전장치 아래에서 진행되도록 에스크로 시스템 및 신뢰 정책을 운영합니다.
         </p>
       </div>
 
-      <div className="space-y-5">
-        {sections.map(({ icon: Icon, title, color, items }) => (
-          <div key={title} className="bg-white rounded-[28px] border border-gray-100 p-6 shadow-sm">
-            <div className="flex items-center gap-3 mb-4">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${color.split(' ')[0]}`}>
-                <Icon className={`h-5 w-5 ${color.split(' ')[1]}`} />
+      <div className="space-y-8">
+        {/* 법적 안전장치 섹션 */}
+        <div>
+          <h2 className="text-xl font-bold text-[#332F3A] mb-4 flex items-center gap-2">
+            <span className="w-1.5 h-6 bg-[#7C3AED] rounded-full inline-block" />
+            1. 거래 및 법적 안전보장 가이드
+          </h2>
+          <div className="space-y-5">
+            {legalSections.map(({ icon: Icon, title, color, items }) => (
+              <div key={title} className="bg-white rounded-[28px] border border-gray-100 p-6 shadow-sm">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${color.split(' ')[0]}`}>
+                    <Icon className={`h-5 w-5 ${color.split(' ')[1]}`} />
+                  </div>
+                  <h3 className="text-base font-bold text-[#332F3A]">{title}</h3>
+                </div>
+                <ul className="space-y-2">
+                  {items.map((item, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-[#635F69] leading-relaxed">
+                      <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[#7C3AED] shrink-0" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <h2 className="text-lg font-bold text-[#332F3A]">{title}</h2>
-            </div>
-            <ul className="space-y-2">
-              {items.map((item, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm text-[#635F69]">
-                  <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[#7C3AED] shrink-0" />
-                  {item}
-                </li>
-              ))}
-            </ul>
+            ))}
           </div>
-        ))}
+        </div>
+
+        {/* 분쟁 중재 섹션 */}
+        <div className="pt-4">
+          <h2 className="text-xl font-bold text-[#332F3A] mb-4 flex items-center gap-2">
+            <span className="w-1.5 h-6 bg-[#7C3AED] rounded-full inline-block" />
+            2. 분쟁 중재 정책 안내
+          </h2>
+          <div className="space-y-5">
+            {disputeSections.map(({ icon: Icon, title, color, items }) => (
+              <div key={title} className="bg-white rounded-[28px] border border-gray-100 p-6 shadow-sm">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${color.split(' ')[0]}`}>
+                    <Icon className={`h-5 w-5 ${color.split(' ')[1]}`} />
+                  </div>
+                  <h3 className="text-base font-bold text-[#332F3A]">{title}</h3>
+                </div>
+                <ul className="space-y-2">
+                  {items.map((item, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-[#635F69] leading-relaxed">
+                      <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[#7C3AED] shrink-0" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
-      <div className="mt-8 bg-[#EDE9FE] rounded-[24px] p-6 text-center">
-        <p className="text-sm text-[#635F69]">
-          분쟁과 관련하여 추가 문의가 있으시면 고객센터로 연락해주세요.
+      <div className="mt-12 bg-[#EDE9FE] rounded-[24px] p-6 text-center">
+        <p className="text-sm text-[#635F69] font-medium">
+          품웍의 안전 거래 및 정책과 관련하여 추가 문의가 있으시면 고객센터로 연락해주세요.
         </p>
-        <p className="text-xs text-[#635F69] mt-1 opacity-70">최종 수정일: 2025년 1월</p>
+        <p className="text-xs text-[#635F69] mt-2 opacity-70">최종 수정일: 2025년 1월</p>
       </div>
     </div>
   );
