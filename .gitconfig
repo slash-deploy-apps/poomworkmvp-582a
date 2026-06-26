@@ -1,0 +1,2 @@
+[credential]
+	helper = store --file=/home/user/.oa-git-credentials
