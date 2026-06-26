@@ -1,5 +1,5 @@
 import { Link, useLoaderData } from 'react-router';
-import { Briefcase, Menu, MessageCircle } from 'lucide-react';
+import { Briefcase, Menu, MessageCircle, ChevronDown } from 'lucide-react';
 import { Button } from '~/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '~/components/ui/sheet';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '~/components/ui/dropdown-menu';
@@ -92,14 +92,22 @@ export function Header({ user, unreadMessages = 0 }: { user?: { id: string; name
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <div className='hidden md:flex items-center gap-2'>
-              <Button variant='ghost' asChild className='rounded-[20px] text-[#7C3AED] hover:bg-[#7C3AED]/10 transition-all duration-200'>
-                <Link to='/login'>로그인</Link>
-              </Button>
-              <Button asChild className='rounded-[20px] bg-gradient-to-br from-[#A78BFA] to-[#7C3AED] text-white shadow-clay-button hover:-translate-y-1 hover:shadow-clay-button-hover active:scale-[0.92] active:shadow-clay-pressed font-bold px-6 transition-all duration-200'>
-                <Link to='/register'>회원가입</Link>
-              </Button>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button className='hidden md:inline-flex rounded-[20px] bg-gradient-to-br from-[#A78BFA] to-[#7C3AED] text-white shadow-clay-button hover:-translate-y-1 hover:shadow-clay-button-hover active:scale-[0.92] active:shadow-clay-pressed font-bold px-6 transition-all duration-200 gap-2'>
+                  시작하기
+                  <ChevronDown className='h-4 w-4' />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className='w-40' align='end'>
+                <DropdownMenuItem asChild>
+                  <Link to='/login'>로그인</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to='/register'>회원가입</Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
 
           {/* Mobile menu */}
