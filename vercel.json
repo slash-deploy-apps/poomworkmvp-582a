@@ -1,0 +1,10 @@
+{
+  "framework": "react-router",
+  "buildCommand": "pnpm run build",
+  "installCommand": "pnpm install",
+  "functions": {
+    "build/server/**/*.js": {
+      "maxDuration": 30
+    }
+  }
+}
