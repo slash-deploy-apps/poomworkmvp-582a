@@ -93,11 +93,8 @@ export function Header({ user, unreadMessages = 0 }: { user?: { id: string; name
             </DropdownMenu>
           ) : (
             <div className='hidden md:flex items-center gap-2'>
-              <Button variant='ghost' asChild className='rounded-[20px] text-[#7C3AED] hover:bg-[#7C3AED]/10 transition-all duration-200'>
-                <Link to='/login'>로그인</Link>
-              </Button>
               <Button asChild className='rounded-[20px] bg-gradient-to-br from-[#A78BFA] to-[#7C3AED] text-white shadow-clay-button hover:-translate-y-1 hover:shadow-clay-button-hover active:scale-[0.92] active:shadow-clay-pressed font-bold px-6 transition-all duration-200'>
-                <Link to='/register'>회원가입</Link>
+                <Link to='/login'>로그인/회원가입</Link>
               </Button>
             </div>
           )}
@@ -131,10 +128,7 @@ export function Header({ user, unreadMessages = 0 }: { user?: { id: string; name
                       <form action='/logout' method='POST' className='block'><button type='submit' className='w-full text-left rounded-[20px] px-4 py-2 text-base font-medium text-[#635F69] hover:bg-[#7C3AED]/10'>로그아웃</button></form>
                     </>
                   ) : (
-                    <>
-                      <Link to='/login' className='block rounded-[20px] px-4 py-2 text-base font-medium text-[#635F69] hover:bg-[#7C3AED]/10'>로그인</Link>
-                      <Link to='/register' className='block rounded-[20px] px-4 py-2 text-base font-bold text-[#7C3AED]'>회원가입</Link>
-                    </>
+                    <Link to='/login' className='block rounded-[20px] px-4 py-2 text-base font-bold text-[#7C3AED] hover:bg-[#7C3AED]/10'>로그인/회원가입</Link>
                   )}
                 </div>
               </nav>
