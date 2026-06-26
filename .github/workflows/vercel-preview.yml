@@ -1,0 +1,200 @@
+name: Vercel Preview Deployment
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: vercel-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write  # PR에 댓글 달기 위해 필요
+
+    steps:
+      # ── 1. 코드 체크아웃 ──────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── 2. Node / pnpm 설정 ───────────────────────────────────────────
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      # ── 3. 브랜치 이름 → Turso DB 이름으로 변환 ──────────────────────
+      #    Turso DB 이름 규칙: 소문자, 숫자, 하이픈만 허용 / 최대 32자
+      - name: Sanitize branch name for Turso DB
+        id: db_name
+        run: |
+          RAW="${{ github.event.pull_request.head.ref }}"
+          # 소문자 변환, 슬래시/언더스코어/점 → 하이픈, 특수문자 제거, 최대 32자
+          SANITIZED=$(echo "$RAW" \
+            | tr '[:upper:]' '[:lower:]' \
+            | sed 's|[/_.]|-|g' \
+            | sed 's|[^a-z0-9-]||g' \
+            | sed 's|--*|-|g' \
+            | sed 's|^-||;s|-$||' \
+            | cut -c1-32)
+          # PR 번호를 prefix로 붙여 충돌 방지
+          DB_NAME="pr-${{ github.event.pull_request.number }}-${SANITIZED}"
+          DB_NAME=$(echo "$DB_NAME" | cut -c1-32)
+          echo "db_name=$DB_NAME" >> $GITHUB_OUTPUT
+          echo "Turso DB name: $DB_NAME"
+
+      # ── 4. Turso Preview DB 생성 (기존 DB 복제) ──────────────────────
+      - name: Create Turso Preview DB
+        id: turso_db
+        run: |
+          # 이미 존재하는 DB인지 확인 (재시도 시 중복 생성 방지)
+          EXISTING=$(curl -s \
+            -H "Authorization: Bearer ${{ secrets.TURSO_API_TOKEN }}" \
+            "https://api.turso.tech/v1/organizations/${{ secrets.TURSO_ORGANIZATION_NAME }}/databases/${{ steps.db_name.outputs.db_name }}" \
+            | jq -r '.database.Hostname // empty')
+
+          if [ -n "$EXISTING" ]; then
+            echo "DB already exists: $EXISTING"
+            echo "db_url=libsql://$EXISTING" >> $GITHUB_OUTPUT
+          else
+            RESPONSE=$(curl -s -X POST \
+              -H "Authorization: Bearer ${{ secrets.TURSO_API_TOKEN }}" \
+              -H "Content-Type: application/json" \
+              -d "{
+                \"name\": \"${{ steps.db_name.outputs.db_name }}\",
+                \"group\": \"${{ secrets.TURSO_GROUP_NAME }}\",
+                \"seed\": {
+                  \"type\": \"database\",
+                  \"name\": \"${{ secrets.TURSO_DATABASE_NAME }}\"
+                }
+              }" \
+              "https://api.turso.tech/v1/organizations/${{ secrets.TURSO_ORGANIZATION_NAME }}/databases")
+
+            echo "Turso API response: $RESPONSE"
+
+            HOSTNAME=$(echo "$RESPONSE" | jq -r '.database.Hostname // empty')
+            if [ -z "$HOSTNAME" ]; then
+              echo "❌ Failed to create Turso DB"
+              echo "$RESPONSE"
+              exit 1
+            fi
+
+            echo "✅ Created Turso DB: $HOSTNAME"
+            echo "db_url=libsql://$HOSTNAME" >> $GITHUB_OUTPUT
+          fi
+
+      # ── 5. Turso Preview DB Auth Token 생성 ──────────────────────────
+      - name: Create Turso DB Token
+        id: turso_token
+        run: |
+          RESPONSE=$(curl -s -X POST \
+            -H "Authorization: Bearer ${{ secrets.TURSO_API_TOKEN }}" \
+            "https://api.turso.tech/v1/organizations/${{ secrets.TURSO_ORGANIZATION_NAME }}/databases/${{ steps.db_name.outputs.db_name }}/auth/tokens?expiration=7d")
+
+          TOKEN=$(echo "$RESPONSE" | jq -r '.jwt // empty')
+          if [ -z "$TOKEN" ]; then
+            echo "❌ Failed to create DB token"
+            echo "$RESPONSE"
+            exit 1
+          fi
+
+          echo "db_token=$TOKEN" >> $GITHUB_OUTPUT
+          echo "✅ DB token created"
+
+      # ── 6. Drizzle 마이그레이션 실행 ─────────────────────────────────
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run DB migrations on Preview DB
+        env:
+          DATABASE_URL: ${{ steps.turso_db.outputs.db_url }}
+          DATABASE_AUTH_TOKEN: ${{ steps.turso_token.outputs.db_token }}
+        run: npx tsx scripts/migrate.ts
+
+      # ── 7. Vercel CLI로 Preview 배포 ──────────────────────────────────
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Pull Vercel environment
+        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Build project
+        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy to Vercel (Preview)
+        id: vercel_deploy
+        run: |
+          DEPLOY_URL=$(vercel deploy --prebuilt \
+            --token=${{ secrets.VERCEL_TOKEN }} \
+            --env DATABASE_URL="${{ steps.turso_db.outputs.db_url }}" \
+            --env DATABASE_AUTH_TOKEN="${{ steps.turso_token.outputs.db_token }}" \
+            --env BETTER_AUTH_SECRET="${{ secrets.BETTER_AUTH_SECRET }}" \
+            2>&1 | tail -1)
+
+          echo "preview_url=$DEPLOY_URL" >> $GITHUB_OUTPUT
+          echo "✅ Deployed: $DEPLOY_URL"
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      # ── 8. PR에 Preview URL 댓글 달기 ────────────────────────────────
+      - name: Comment Preview URL on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const previewUrl = '${{ steps.vercel_deploy.outputs.preview_url }}';
+            const dbName = '${{ steps.db_name.outputs.db_name }}';
+            const body = [
+              '## 🚀 Vercel Preview 배포 완료',
+              '',
+              `**Preview URL:** ${previewUrl}`,
+              '',
+              '| 항목 | 값 |',
+              '|------|-----|',
+              `| 브랜치 | \`${{ github.event.pull_request.head.ref }}\` |`,
+              `| 커밋 | \`${{ github.event.pull_request.head.sha }}\` |`,
+              `| DB (Turso) | \`${dbName}\` |`,
+              '',
+              '> PR이 닫히면 Preview DB가 자동으로 삭제됩니다.',
+            ].join('\n');
+
+            // 기존 봇 댓글 찾아서 업데이트 (중복 방지)
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(c =>
+              c.user.type === 'Bot' && c.body.includes('Vercel Preview 배포 완료')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

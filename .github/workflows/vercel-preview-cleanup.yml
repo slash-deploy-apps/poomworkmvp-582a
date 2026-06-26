@@ -1,0 +1,43 @@
+name: Cleanup Preview DB
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 브랜치 이름 → Turso DB 이름 변환 (preview 워크플로와 동일 로직) ──
+      - name: Sanitize branch name for Turso DB
+        id: db_name
+        run: |
+          RAW="${{ github.event.pull_request.head.ref }}"
+          SANITIZED=$(echo "$RAW" \
+            | tr '[:upper:]' '[:lower:]' \
+            | sed 's|[/_.]|-|g' \
+            | sed 's|[^a-z0-9-]||g' \
+            | sed 's|--*|-|g' \
+            | sed 's|^-||;s|-$||' \
+            | cut -c1-32)
+          DB_NAME="pr-${{ github.event.pull_request.number }}-${SANITIZED}"
+          DB_NAME=$(echo "$DB_NAME" | cut -c1-32)
+          echo "db_name=$DB_NAME" >> $GITHUB_OUTPUT
+          echo "Deleting Turso DB: $DB_NAME"
+
+      # ── Turso Preview DB 삭제 ──────────────────────────────────────────
+      - name: Delete Turso Preview DB
+        run: |
+          RESPONSE=$(curl -s -X DELETE \
+            -H "Authorization: Bearer ${{ secrets.TURSO_API_TOKEN }}" \
+            "https://api.turso.tech/v1/organizations/${{ secrets.TURSO_ORGANIZATION_NAME }}/databases/${{ steps.db_name.outputs.db_name }}")
+
+          echo "Response: $RESPONSE"
+
+          # DB가 없어도 에러로 처리하지 않음 (이미 삭제됐을 수 있음)
+          if echo "$RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
+            echo "⚠️  DB may not exist or already deleted (this is OK)"
+          else
+            echo "✅ Turso Preview DB deleted: ${{ steps.db_name.outputs.db_name }}"
+          fi
